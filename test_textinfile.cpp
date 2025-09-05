@@ -1,7 +1,3 @@
-#pragma once
-#ifndef INFILE_HPP
-#define INFILE_HPP  1
-
 /*
 *   YULARK - a virtual machine written in C++
 *   Copyright (C) 2025  Ekkehard Morgenstern
@@ -27,36 +23,39 @@
 *             Germany, Europe
 */
 
-#ifndef IOBUFFER_HPP
-#include "iobuffer.hpp"
-#endif
+#include "textinfile.cpp"
+#include "infile.cpp"
+#include "iobuffer.cpp"
+#include "buffer.cpp"
+#include "utilities.cpp"
 
-#include <string>
+#include <exception>
+#include <iostream>
+#include <cstdlib>
 
-class Infile {
+int main( int argc, char** argv ) {
 
-    Infile( const Infile& ) = delete;
-    Infile( Infile&& ) = delete;
+    try {
+        if ( argc < 2 ) {
+            std::cerr << "Usage: " << argv[0] << " <infile>" << std::endl;
+            return EXIT_FAILURE;
+        }
+        TextInfile file( argv[1] );
+        if ( !file.open() ) {
+            std::cerr << "failed to open file" << std::endl;
+            std::cerr << "error " << file.getLastError() << std::endl;
+            return EXIT_FAILURE;
+        }
+        while ( file.readLine() ) {
+            std::cout << file.getLine();
+        }
+    } catch ( const std::exception& xcpt ) {
+        std::cerr << "exception: " << xcpt.what() << std::endl;
+        return EXIT_FAILURE;
+    } catch ( ... ) {
+        std::cerr << "unhandled exception" << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    Infile& operator=( const Infile& ) = delete;
-    Infile& operator=( Infile&& ) = delete;
-
-protected:
-    std::string     fileName;
-    IOBuffer        ioBuffer;
-    int             fd;
-    int             err;
-
-public:
-    Infile( const std::string& fileName_ );
-    virtual ~Infile();
-
-    inline int getFd() const { return fd; }
-    inline int getLastError() const { return err; }
-
-    bool open();
-    void close();
-};
-
-
-#endif
+    return EXIT_SUCCESS;
+}

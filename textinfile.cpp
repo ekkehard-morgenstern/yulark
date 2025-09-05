@@ -41,17 +41,20 @@ bool TextInfile::readLine() {
         while ( p < e ) {
             char c = *p;
             if ( c == '\n' ) {
-                if ( p > s ) {
-                    size_t len = static_cast<size_t>( p - s );
-                    autoScaleAppend( inputLine, s, len );
-                }
                 ++p;
+                size_t len = static_cast<size_t>( p - s );
+                autoScaleAppend( inputLine, s, len );
                 inputPos = static_cast<int>( p - ioBuffer.getMemPtr() );
                 return true;
             }
             ++p;
         }
         // end of buffer
+        if ( p > s ) {
+            size_t len = static_cast<size_t>( p - s );
+            autoScaleAppend( inputLine, s, len );
+            inputPos = static_cast<int>( p - ioBuffer.getMemPtr() );
+        }
         if ( ioBuffer.getMemFill() < ioBuffer.getMemSize() ) {
             // end of file
             return false;
