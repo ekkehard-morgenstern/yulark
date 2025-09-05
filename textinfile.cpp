@@ -57,7 +57,7 @@ bool TextInfile::readLine() {
         }
         if ( ioBuffer.getMemFill() < ioBuffer.getMemSize() ) {
             // end of file
-            return false;
+            return !inputLine.empty();
         }
         // refill buffer
         if ( !ioBuffer.read() ) {
