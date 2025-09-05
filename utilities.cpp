@@ -46,6 +46,7 @@ void setMaxBufferSize( size_t size ) {
  * a process that consumes too much memory, so be careful.
  * If the memory size would exceed SIZE_MAX, the input to be appended
  * is truncated as needed.
+ * EDIT: I made the size maximum configurable.
  */
 void autoScaleAppend( std::string& buffer, const char* s, size_t len ) {
     size_t cap = buffer.capacity();
@@ -54,6 +55,8 @@ void autoScaleAppend( std::string& buffer, const char* s, size_t len ) {
     if ( len > rem ) {
         if ( cap <= maxBufferSize / 3U ) {
             cap *= 3U;
+        } else {
+            cap = maxBufferSize;
         }
         rem = cap - siz;
         if ( len > rem ) {
