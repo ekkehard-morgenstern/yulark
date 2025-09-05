@@ -29,6 +29,7 @@
 
 #include <string>
 
+void setMaxBufferSize( size_t size = SIZE_MAX );
 void autoScaleAppend( std::string& buffer, const char* s, size_t len );
 
 #endif

@@ -25,17 +25,39 @@
 
 #include "utilities.hpp"
 
+#define MIN_MAXBUFFERSIZE   65535U
+
+static size_t maxBufferSize = SIZE_MAX;
+
+void setMaxBufferSize( size_t size ) {
+    if ( size < MIN_MAXBUFFERSIZE ) {
+        size = MIN_MAXBUFFERSIZE;
+    }
+    maxBufferSize = size;
+}
+
+/**
+ * Auto-scales string buffer to receive the text to be appended.
+ * The buffer's capacity is multiplied by 3 each time it is to be resized,
+ * except when that wouldn't be sufficient to satisfy the request.
+ * The maximum buffer size is SIZE_MAX, which can be a very large value.
+ * So this sacrifices stability at the expense of being able to load files
+ * with very large lines, for instance. On Linux, the OOM killer will autokill
+ * a process that consumes too much memory, so be careful.
+ * If the memory size would exceed SIZE_MAX, the input to be appended
+ * is truncated as needed.
+ */
 void autoScaleAppend( std::string& buffer, const char* s, size_t len ) {
     size_t cap = buffer.capacity();
     size_t siz = buffer.size();
     size_t rem = cap - siz;
     if ( len > rem ) {
-        if ( cap <= SIZE_MAX / 3U ) {
+        if ( cap <= maxBufferSize / 3U ) {
             cap *= 3U;
         }
         rem = cap - siz;
         if ( len > rem ) {
-            rem = SIZE_MAX - siz;
+            rem = maxBufferSize - siz;
             if ( len > rem ) {
                 len = rem;
                 if ( len == 0U ) {
