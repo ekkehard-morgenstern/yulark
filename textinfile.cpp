@@ -24,6 +24,7 @@
 */
 
 #include "textinfile.hpp"
+#include "utilities.hpp"
 
 TextInfile::TextInfile( const std::string& fileName_ )
     : Infile( fileName_ ), inputPos(0) {}
@@ -42,8 +43,7 @@ bool TextInfile::readLine() {
             if ( c == '\n' ) {
                 if ( p > s ) {
                     size_t len = static_cast<size_t>( p - s );
-                    // TBD: Predictive preallocation
-                    inputLine.append( s, len );
+                    autoScaleAppend( inputLine, s, len );
                 }
                 ++p;
                 inputPos = static_cast<int>( p - ioBuffer.getMemPtr() );

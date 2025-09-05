@@ -1,7 +1,3 @@
-#pragma once
-#ifndef TEXTINFILE_H
-#define TEXTINFILE_H    1
-
 /*
 *   YULARK - a virtual machine written in C++
 *   Copyright (C) 2025  Ekkehard Morgenstern
@@ -27,23 +23,28 @@
 *             Germany, Europe
 */
 
-#ifndef INFILE_H
-#include "infile.hpp"
-#endif
+#include "utilities.hpp"
 
-class TextInfile : public Infile {
-
-protected:
-    std::string     inputLine;
-    int             inputPos;
-
-public:
-    TextInfile( const std::string& fileName_ );
-    virtual ~TextInfile();
-
-    bool readLine();
-    inline const std::string& getLine() const { return inputLine; }
-
-};
-
-#endif
+void autoScaleAppend( std::string& buffer, const char* s, size_t len ) {
+    size_t cap = buffer.capacity();
+    size_t siz = buffer.size();
+    size_t rem = cap - siz;
+    if ( len > rem ) {
+        if ( cap <= SIZE_MAX / 3U ) {
+            cap *= 3U;
+        }
+        rem = cap - siz;
+        if ( len > rem ) {
+            rem = SIZE_MAX - siz;
+            if ( len > rem ) {
+                len = rem;
+                if ( len == 0U ) {
+                    return;
+                }
+            }
+            cap = siz + len;
+        }
+        buffer.reserve( cap );
+    }
+    buffer.append( s, len );
+}

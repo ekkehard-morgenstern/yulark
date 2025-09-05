@@ -1,6 +1,6 @@
 #pragma once
-#ifndef TEXTINFILE_H
-#define TEXTINFILE_H    1
+#ifndef UTILITIES_HPP
+#define UTILITIES_HPP   1
 
 /*
 *   YULARK - a virtual machine written in C++
@@ -27,23 +27,8 @@
 *             Germany, Europe
 */
 
-#ifndef INFILE_H
-#include "infile.hpp"
-#endif
+#include <string>
 
-class TextInfile : public Infile {
-
-protected:
-    std::string     inputLine;
-    int             inputPos;
-
-public:
-    TextInfile( const std::string& fileName_ );
-    virtual ~TextInfile();
-
-    bool readLine();
-    inline const std::string& getLine() const { return inputLine; }
-
-};
+void autoScaleAppend( std::string& buffer, const char* s, size_t len );
 
 #endif
