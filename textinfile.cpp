@@ -68,3 +68,7 @@ bool TextInfile::readLine() {
         inputPos = 0;
     } while (true);
 }
+
+off_t TextInfile::getFilePos() const {
+    return Infile::getFilePos() + static_cast<off_t>(inputPos);
+}

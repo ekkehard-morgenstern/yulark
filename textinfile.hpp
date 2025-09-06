@@ -44,6 +44,7 @@ public:
     bool readLine();
     inline const std::string& getLine() const { return inputLine; }
 
+    virtual off_t getFilePos() const override;
 };
 
 #endif

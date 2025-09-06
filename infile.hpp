@@ -55,7 +55,7 @@ public:
     bool open();
     void close();
 
-    off_t getFilePos() const;
+    virtual off_t getFilePos() const;
 };
 
 

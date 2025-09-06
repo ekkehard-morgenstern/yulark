@@ -53,7 +53,6 @@ public:
     inline int getLastError() const { return err; }
     inline int getFd() const { return fd; }
     inline void setFd( int fd_ ) { fd = fd_; }
-
 };
 
 
