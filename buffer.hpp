@@ -27,7 +27,9 @@
 *             Germany, Europe
 */
 
-#include <cstddef>
+#ifndef TYPES_HPP
+#include "types.hpp"
+#endif
 
 #define DEFAULT_BUFFER_SIZE 16384U
 

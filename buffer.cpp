@@ -25,8 +25,6 @@
 
 #include "buffer.hpp"
 
-#include <cstring>
-
 Buffer::Buffer() {
     memory = new char [ DEFAULT_BUFFER_SIZE ];
     memSize = DEFAULT_BUFFER_SIZE;

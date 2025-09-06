@@ -25,11 +25,6 @@
 
 #include "infile.hpp"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-
 Infile::Infile( const std::string& fileName_ )
     :   fileName(fileName_), ioBuffer(-1), fd(-1), err(0) {}
 

@@ -1,6 +1,6 @@
 #pragma once
-#ifndef UTILITIES_HPP
-#define UTILITIES_HPP   1
+#ifndef TYPES_HPP
+#define TYPES_HPP   1
 
 /*
 *   YULARK - a virtual machine written in C++
@@ -27,11 +27,18 @@
 *             Germany, Europe
 */
 
-#ifndef TYPES_HPP
-#include "types.hpp"
-#endif
+#define _FILE_OFFSET_BITS 64
 
-void setMaxBufferSize( size_t size = SIZE_MAX );
-void autoScaleAppend( std::string& buffer, const char* s, size_t len );
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
+
+#include <string>
 
 #endif

@@ -25,9 +25,6 @@
 
 #include "iobuffer.hpp"
 
-#include <unistd.h>
-#include <errno.h>
-
 IOBuffer::IOBuffer( int fd_ ) : fd(fd_), err(0) {}
 
 IOBuffer::IOBuffer( const IOBuffer& src )

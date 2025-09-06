@@ -31,8 +31,6 @@
 #include "iobuffer.hpp"
 #endif
 
-#include <string>
-
 class Infile {
 
     Infile( const Infile& ) = delete;
