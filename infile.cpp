@@ -68,8 +68,9 @@ void Infile::close() {
 }
 
 off_t Infile::getFilePos() const {
+    errno = 0;
     off_t rv = lseek( fd, 0, SEEK_CUR );
-    if ( rv == static_cast<off_t>(-1) ) {
+    if ( rv == static_cast<off_t>(-1) && errno != 0 ) {
         err = errno;
     } else {
         err = 0;
