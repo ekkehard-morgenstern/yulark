@@ -66,3 +66,13 @@ void Infile::close() {
     ioBuffer.setFd( -1 );
     ::close( fd ); fd = -1; err = 0;
 }
+
+off_t Infile::getFilePos() const {
+    off_t rv = lseek( fd, 0, SEEK_CUR );
+    if ( rv == static_cast<off_t>(-1) ) {
+        err = errno;
+    } else {
+        err = 0;
+    }
+    return rv;
+}

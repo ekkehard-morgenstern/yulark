@@ -43,7 +43,7 @@ protected:
     std::string     fileName;
     IOBuffer        ioBuffer;
     int             fd;
-    int             err;
+    mutable int     err;
 
 public:
     Infile( const std::string& fileName_ );
@@ -54,6 +54,8 @@ public:
 
     bool open();
     void close();
+
+    off_t getFilePos() const;
 };
 
 
