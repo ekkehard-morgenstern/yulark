@@ -1,6 +1,6 @@
 #pragma once
-#ifndef TYPES_HPP
-#define TYPES_HPP   1
+#ifndef KEYWORD_HPP
+#define KEYWORD_HPP 1
 
 /*
 *   YULARK - a virtual machine written in C++
@@ -27,19 +27,34 @@
 *             Germany, Europe
 */
 
-#define _FILE_OFFSET_BITS 64
+#ifndef TYPES_HPP
+#include "types.hpp"
+#endif
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
+struct KeywordDef {
+    const char* const name;
+    int               id;
+};
 
-#include <cstddef>
-#include <cstdlib>
-#include <cstring>
+class Keyword {
 
-#include <string>
-#include <map>
+    static const KeywordDef             keywordDefs[];
+    static std::map<std::string,int>    mapKeywordToId;
+    static std::map<int,std::string>    mapIdToKeyword;
+    static bool                         initialized;
+
+    static void initialize();
+
+protected:
+    static void autoInit();
+
+public:
+    static bool findIdByName( const std::string& inpName, int& outId );
+    static bool findNameById( int inpId, std::string& outName );
+
+
+
+
+};
 
 #endif
