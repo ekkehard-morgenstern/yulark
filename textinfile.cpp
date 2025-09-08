@@ -27,7 +27,7 @@
 #include "utilities.hpp"
 
 TextInfile::TextInfile( const std::string& fileName_ )
-    : Infile( fileName_ ), inputPos(0) {}
+    : Infile( fileName_ ), inputPos(0), inputLineNumber(1) {}
 
 TextInfile::~TextInfile() {}
 
@@ -45,6 +45,7 @@ bool TextInfile::readLine() {
                 size_t len = static_cast<size_t>( p - s );
                 autoScaleAppend( inputLine, s, len );
                 inputPos = static_cast<int>( p - ioBuffer.getMemPtr() );
+                ++inputLineNumber;
                 return true;
             }
             ++p;

@@ -36,6 +36,7 @@ class TextInfile : public Infile {
 protected:
     std::string     inputLine;
     int             inputPos;
+    int             inputLineNumber;
 
 public:
     TextInfile( const std::string& fileName_ );
@@ -43,6 +44,7 @@ public:
 
     bool readLine();
     inline const std::string& getLine() const { return inputLine; }
+    inline int getInputLineNumber() const { return inputLineNumber; }
 
     virtual off_t getFilePos() const override;
 };
