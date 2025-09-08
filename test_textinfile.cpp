@@ -46,8 +46,10 @@ int main( int argc, char** argv ) {
             std::cerr << "error " << file.getLastError() << std::endl;
             return EXIT_FAILURE;
         }
+        int lineNo = file.getInputLineNumber();
         while ( file.readLine() ) {
-            std::cout << file.getLine();
+            std::cout << lineNo << ' ' << file.getLine();
+            lineNo = file.getInputLineNumber();
         }
     } catch ( const std::exception& xcpt ) {
         std::cerr << "exception: " << xcpt.what() << std::endl;
