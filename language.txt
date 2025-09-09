@@ -1,0 +1,47 @@
+
+YULARK built-in language
+------------------------
+
+Spielfeld:
+
+label: bla = 1
+label  bla = 1
+
+
+Free-form Definition:
+
+Kommando:
+    [line-number-or-label] [CALL] [<ref-list>.]<cmd-name> [[name:]arg{, [name:]arg}]
+
+Zuweisung:
+    [line-number-or-label] [LET] <assign-expr>{, <assign-expr>} = <expr>{, <expr>}
+
+Ausdrücke:
+    (das Übliche)
+
+Kommandodeklaration (prozedural oder OOP):
+    COMMAND [ref-list.]<cmd-name>
+    ...
+    END
+
+Funktionsdeklaration (prozedural oder OOP):
+    FUNCTION [ref-list.]<fn-name> ( <arg-name>[=<default>]{, <arg-name>[=<default>]} )
+
+        RESULT <expr>{, <expr>}
+    END
+
+Klassendeklaration:
+    (Methoden können innerhalb oder außerhalb von Klassendefinitionen definiert werden)
+
+    CLASS [ref-list.]<cls-name> [EXTENDS [ref-list.]<cls-name>{, [ref-list.]<cls-name>}] [IMPLEMENTS [ref-list.]<ifc-name>{, [ref-list.]<ifc-name>}]
+
+        PROPERTY [ref-list.]<name>{, [ref-list.]<name>}
+
+        ... Kommandos und Funktionen ...
+
+    END
+
+
+
+
+Formale Definition:
