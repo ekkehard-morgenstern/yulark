@@ -7,6 +7,19 @@ Spielfeld:
 label: bla = 1
 label  bla = 1
 
+FOO   CALL bla.spurt 10+5,20,30
+      bla.spurt 99,999
+      LET xy = 2.4 * 43 + yank(7)
+
+FUNCTION yank(a)
+RESULT a * 29
+END
+
+CLASS raspberry
+    FUNCTION getTaste
+        RESULT 42
+    END
+END
 
 Free-form Definition:
 
@@ -22,26 +35,24 @@ Ausdrücke:
 Kommandodeklaration (prozedural oder OOP):
     COMMAND [ref-list.]<cmd-name>
     ...
-    END
+    END [COMMAND]
 
 Funktionsdeklaration (prozedural oder OOP):
     FUNCTION [ref-list.]<fn-name> ( <arg-name>[=<default>]{, <arg-name>[=<default>]} )
 
         RESULT <expr>{, <expr>}
-    END
+    END [FUNCTION]
 
 Klassendeklaration:
     (Methoden können innerhalb oder außerhalb von Klassendefinitionen definiert werden)
 
     CLASS [ref-list.]<cls-name> [EXTENDS [ref-list.]<cls-name>{, [ref-list.]<cls-name>}] [IMPLEMENTS [ref-list.]<ifc-name>{, [ref-list.]<ifc-name>}]
 
-        PROPERTY [ref-list.]<name>{, [ref-list.]<name>}
+        PROPERTY <name>{, <name>}
 
-        ... Kommandos und Funktionen ...
+        ... unqualifizierte Kommandos und Funktionen ...
 
-    END
-
-
+    END [CLASS]
 
 
 Formale Definition:
