@@ -16,8 +16,12 @@ RESULT a * 29
 END
 
 CLASS raspberry
+    PROPERTY taste
     FUNCTION getTaste
-        RESULT 42
+        RESULT [this.]taste
+    END
+    COMMAND setTaste xy
+        taste = xy
     END
 END
 
@@ -33,7 +37,7 @@ Ausdrücke:
     (das Übliche)
 
 Kommandodeklaration (prozedural oder OOP):
-    COMMAND [ref-list.]<cmd-name>
+    COMMAND [ref-list.]<cmd-name> [<arg-name>[=default]{, <arg-name>[=default]}]
     ...
     END [COMMAND]
 
@@ -52,7 +56,16 @@ Klassendeklaration:
 
         ... unqualifizierte Kommandos und Funktionen ...
 
+        Konstruktor: Kommando INIT
+        Destruktor: Kommando DESTROY
+
     END [CLASS]
+
+Objekt-allokierung:
+
+    Ausdruck    A = NEW B
+
+    Default-Setter/Getter
 
 
 Formale Definition:
