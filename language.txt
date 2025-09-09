@@ -63,9 +63,39 @@ Klassendeklaration:
 
 Objekt-allokierung:
 
-    Ausdruck    A = NEW B
+    Ausdruck    A = NEW B [<konstruktor-parameter-liste>]
 
     Default-Setter/Getter
+
+Objekt-deallokierung
+
+    Kommando    DELETE A (Objekt-Liste)
+
+Array-allokierung:
+
+    Ausdruck    A = ARRAY (Dimensions-Liste)
+
+    Dimension DYNAMIC erzeugt dynamisches Array (nur 1-dimensionales Array)
+    Dimension ASSOC erzeugt assoziatives Array (nur 1-dimensionales Array)
+
+Array-Verwendung:
+
+    B = ARRAY 20,30
+    B[10,20] = 5
+    A = B[10,20]
+
+    B = ARRAY DYNAMIC
+    B[150] = C
+
+    C = ARRAY ASSOC
+    C["FOO"] = "BAR"
+    C[15] = "YO"
+    C["BAR"] = 39
+
+
+
+
+Array-Deallokierung wie Objekt-Deallokierung
 
 
 Formale Definition:
