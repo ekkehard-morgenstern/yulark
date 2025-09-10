@@ -105,6 +105,22 @@ Includes
 
 INCLUDE <file-name>
 
+Defines / constants
+[DEFINE|CONST|ENUM] <name> [ = <expr> ] { , <name> [ = <expr> ] }
+
+    ENUM expressions are automatically incremented left to right, if no
+    expression is given.
+    With CONST, expressions are required.
+    With DEFINE, expressions are optional.
+
+Imports
+
+IMPORT <identifier-list> [ FROM <file-name> ]
+
+Exports
+
+EXPORT <identifier-list>
+
 Conditionals
 
 IFDEF / IFNDEF <name>
@@ -118,6 +134,7 @@ Loops
 
 FOR <key-name>[,<val-name>] IN <array>
 FOR <name> = <expr> TO|DOWNTO <expr> [STEP <expr>]
+FOR EVER | FOREVER
     ...
     CONTINUE
     BREAK
@@ -125,6 +142,57 @@ FOR <name> = <expr> TO|DOWNTO <expr> [STEP <expr>]
     ...
 END [FOR]
 
+REPEAT
+    ...
+UNTIL <expr>
 
+WHILE <expr>
+    ...
+WEND
+
+GOTO <label-or-line-number>
+
+GOSUB <label-or-line-number>
+    ...
+RETURN
+
+SWITCH <expr>
+    ...
+    CASE <expr>
+        ...
+    END [CASE]
+    ...
+    DEFAULT
+        ...
+    END [DEFAULT]
+    ...
+END [SWITCH]
+
+Built-in functions:
+
+    result = HTTP( protocol, method, url )
+
+    result = TO_JSON( <expr> )
+    result = FROM_JSON( <expr> )
+
+    result = INSERT( <insert-args> )
+
+Database:
+
+    DATABASE <internal-name>, <protocol>, <url>, <instance>, <credentials>
+
+        SELECT <select-stmt>
+
+        UPDATE <update-stmt>
+
+        DELETE <delete-stmt>
+
+    END [DATABASE]
+
+Status / error handling:
+
+STATUS [HTTP] <expr>
+    ...
+END [STATUS]
 
 Formale Definition:
