@@ -92,10 +92,39 @@ Array-Verwendung:
     C[15] = "YO"
     C["BAR"] = 39
 
-
-
-
 Array-Deallokierung wie Objekt-Deallokierung
+
+Verbatim-Sektionen
+
+VERBATIM
+    ... wird nach Ausgabe kopiert ...
+    ... Referenzen der Form {{var}} werden expandiert ...
+END [VERBATIM]
+
+Includes
+
+INCLUDE <file-name>
+
+Conditionals
+
+IFDEF / IFNDEF <name>
+IF <condition>
+    ...
+ELSE
+    ...
+ENDIF
+
+Loops
+
+FOR <key-name>[,<val-name>] IN <array>
+FOR <name> = <expr> TO|DOWNTO <expr> [STEP <expr>]
+    ...
+    CONTINUE
+    BREAK
+    AGAIN
+    ...
+END [FOR]
+
 
 
 Formale Definition:
