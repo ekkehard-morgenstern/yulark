@@ -26,6 +26,27 @@
 #include "keyword.hpp"
 
 const KeywordDef Keyword::keywordDefs[] = {
+    { "AGAIN", KW_AGAIN }, { "ARRAY", KW_ARRAY }, { "ASSOC", KW_ASSOC },
+    { "BREAK", KW_BREAK }, { "CALL", KW_CALL }, { "CASE", KW_CASE },
+    { "CLASS", KW_CLASS }, { "COMMAND", KW_COMMAND }, { "CONST", KW_CONST },
+    { "CONTINUE", KW_CONTINUE }, { "DATABASE", KW_DATABASE },
+    { "DEFAULT", KW_DEFAULT }, { "DEFINE", KW_DEFINE }, { "DELETE", KW_DELETE },
+    { "DESTROY", KW_DESTROY }, { "DOWNTO", KW_DOWNTO },
+    { "DYNAMIC", KW_DYNAMIC }, { "ELSE", KW_ELSE }, { "END", KW_END },
+    { "ENDIF", KW_ENDIF }, { "ENUM", KW_ENUM }, { "EVER", KW_EVER },
+    { "EXPORT", KW_EXPORT }, { "EXTENDS", KW_EXTENDS }, { "FOR", KW_FOR },
+    { "FOREVER", KW_FOREVER }, { "FROM", KW_FROM },
+    { "FROM_JSON(", KW_FN_FROM_JSON }, { "FUNCTION", KW_FUNCTION },
+    { "GOSUB", KW_GOSUB }, { "GOTO", KW_GOTO }, { "HTTP(", KW_FN_HTTP },
+    { "IF", KW_IF }, { "IFDEF", KW_IFDEF }, { "IFNDEF", KW_IFNDEF },
+    { "IMPLEMENTS", KW_IMPLEMENTS }, { "IMPORT", KW_IMPORT }, { "IN", KW_IN },
+    { "INCLUDE", KW_INCLUDE }, { "INIT", KW_INIT }, { "INSERT(", KW_FN_INSERT },
+    { "LET", KW_LET }, { "NEW", KW_NEW }, { "PROPERTY", KW_PROPERTY },
+    { "REPEAT", KW_REPEAT }, { "RESULT", KW_RESULT }, { "RETURN", KW_RETURN },
+    { "SELECT", KW_SELECT }, { "STATUS", KW_STATUS }, { "STEP", KW_STEP },
+    { "SWITCH", KW_SWITCH }, { "TO", KW_TO }, { "TO_JSON(", KW_FN_TO_JSON },
+    { "UNTIL", KW_UNTIL }, { "UPDATE", KW_UPDATE }, { "VERBATIM", KW_VERBATIM },
+    { "WEND", KW_WEND }, { "WHILE", KW_WHILE },
     { nullptr, 0 }
 };
 
