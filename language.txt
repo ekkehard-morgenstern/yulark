@@ -43,6 +43,9 @@ Sprachdefinition:
     der Source dann als Programm ausgefuehrt (was dann wiederum Code
     generieren koennte, der dann gecached werden kann bspw).
 
+    Dieser Ansatz koennte praktikabler sein als mein klassischer Versuch,
+    bspw. eine vorkompilerte EBNF zu verwenden.
+
 Spielfeld:
 
 label: bla = 1
