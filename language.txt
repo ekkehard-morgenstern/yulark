@@ -2,6 +2,47 @@
 YULARK built-in language
 ------------------------
 
+Sprachdefinition:
+
+    Wie kann man die Sprache am besten definieren?
+
+    Kann man FORTH's "Compiles / DOES>" Syntax irgendwie nutzen?
+
+    In FORTH definiert
+
+        : CONSTANT CREATE , DOES> @ ;
+
+    den Dictionary-Eintrag CONSTANT und compiliert mit "," das auf dem
+    Stack liegende (numerische) Wort in das Parameterfeld, sodass
+
+        76 CONSTANT BLA
+
+    eine Konstante "BLA" anlegt mit dem Wert 76 im Parameterfeld.
+    Beim Aufruf von BLA wird mit "@" die Adresse des Parameterfelds
+    vom Stack geholt (das der Compiler fuer den Aufruf dorthin gelegt hat)
+    und dann diese Adresse ausgelesen (der Wert / das Wort 76) und dann
+    auf den Stack gelegt, sodass
+
+        BLA .
+
+    den Wert 76 ausgibt.
+
+    Wie muesste ein FORTH-System aussehen, dass die Sprache von YULARK
+    compilieren kann? Und wie muesste YULARK's Laufzeitsystem dann
+    aussehen?
+
+    Eine dynamische Keywordmap, die bereits definierte Worte enthaelt,
+    waere auf jeden Fall besser als eine statische.
+
+    Die Frage ist dann auch wie man das System bauen kann, sodass beim
+    Start nicht erst das System selbst compiliert werden muss. Das muss
+    also bereits beim Bauen geschehen.
+
+    YULARK muss also eine Art FORTH-Laufzeitsystem enthalten, das bereits
+    vorkompiliert wurde. Wenn dann ein Sourcefile durchlaufen wird, wird
+    der Source dann als Programm ausgefuehrt (was dann wiederum Code
+    generieren koennte, der dann gecached werden kann bspw).
+
 Spielfeld:
 
 label: bla = 1
