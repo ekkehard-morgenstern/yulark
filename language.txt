@@ -46,6 +46,39 @@ Sprachdefinition:
     Dieser Ansatz koennte praktikabler sein als mein klassischer Versuch,
     bspw. eine vorkompilerte EBNF zu verwenden.
 
+Minimales FORTH-System
+
+    Register:
+        PSP     - parameter stack pointer
+        RSP     - return stack pointer
+        WP      - word pointer
+        WA      - word address
+
+    Wortdefinitionen (Dictionary-Eintraege)
+
+        +--------------------+
+        |  code-addr / DOCOL |
+        +--------------------+
+        |  link to previous  |
+        +-----+--------------+
+        | NLF | NAME ...     |
+        +--------------------+
+        | NAME ... PAD 0 0 0 | (optional, remainder of name and pad bytes)
+        +--------------------+
+        |  definition ...    | word-addresses
+        +--------------------+
+
+    NEXT:
+        Beschliesst jedes FORTH Wort
+        WA := [WP]+
+        JUMP [WA]
+
+    DOCOL:
+        Startet die Verarbeitung eines FORTH-Worts
+        -[RSP] := WP
+        WP := +WA     ; +1 word
+        NEXT
+
 Spielfeld:
 
 label: bla = 1
