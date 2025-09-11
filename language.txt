@@ -69,7 +69,7 @@ Minimales FORTH-System
         +--------------------+
 
     NEXT:
-        Beschliesst jedes FORTH Wort
+        Beschliesst jedes FORTH Wort (wenn es in Maschinencode geschrieben ist)
         WA := [WP]+
         JUMP [WA]
 
@@ -77,6 +77,11 @@ Minimales FORTH-System
         Startet die Verarbeitung eines FORTH-Worts
         -[RSP] := WP
         WP := +WA     ; +1 word
+        NEXT
+
+    EXIT:
+        Beendet die Verarbeitung eines FORTH-Worts (letzte Adresse)
+        WP := [RSP]+
         NEXT
 
 Spielfeld:
