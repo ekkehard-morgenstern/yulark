@@ -38,8 +38,12 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
+#include <cinttypes>
+#include <cstdio>
 
 #include <string>
 #include <map>
+#include <exception>
 
 #endif
