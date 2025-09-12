@@ -31,10 +31,13 @@
 #include "buffer.hpp"
 #endif
 
+class ForthVM;
+
 typedef union __forthword_t {
     union __forthword_t*    fwp;
     void*                   ptr;
     char*                   str;
+    void                  (*cbfn)(ForthVM*);
     int64_t                 ival;
     uint64_t                uval;
     double                  dval;
@@ -73,7 +76,7 @@ protected:
         }
     }
 
-    inline forthword_t indirect( const forthword_t& p ) const {
+    inline forthword_t& indirect( const forthword_t& p ) {
         checkPtr( p );
         return *(reinterpret_cast<forthword_t*>(memory) + p.zval);
     }
@@ -88,9 +91,33 @@ protected:
         checkPtr( p );
     }
 
+    inline void next() {
+        // terminates every FORTH wrote written in machine code
+        wa = indirect( wp ); increment( wp ); // WA := [WP]+
+        forthword_t tmp = indirect( wa ); tmp.cbfn( this );  // JUMP [WA]
+    }
 
+    // callback for NEXT that can be stored inside the VM
+    static void next_cb( ForthVM* vm );
 
+    inline void docol() {
+        // starts the processing of every FORTH word implemented in FORTH
+        decrement( rsp ); indirect( rsp ) = wp;     // -[RSP] := WP
+        increment( wa ); wp = wa;   // WP := +WA
+        next();
+    }
 
+    // callback for DOCOL that can be stored inside the VM
+    static void docol_cb( ForthVM* vm );
+
+    inline void exit() {
+        // terminates the processing of any FORTH word implemented in FORTH
+        wp = indirect( rsp ); increment( rsp );     // WP := [RSP]+
+        next();
+    }
+
+    // callback for EXIT that can be stored inside the VM
+    static void exit_cb( ForthVM* vm );
 };
 
 #endif
