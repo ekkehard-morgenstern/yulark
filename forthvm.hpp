@@ -70,31 +70,10 @@ protected:
     forthword_t             wa;     // word address (zval into buffer)
     forthword_t             wp;     // word pointer (zval into buffer)
 
-    inline void checkPtr( const forthword_t& p ) const {
-        if ( p.zval >= memFill / FW_SIZE ) {
-            throw ForthVM_Exception( "Bad FORTH pointer", p );
-        }
-    }
-
-    inline forthword_t& indirect( const forthword_t& p ) {
-        checkPtr( p );
-        return *(reinterpret_cast<forthword_t*>(memory) + p.zval);
-    }
-
-    inline void increment( forthword_t& p ) const {
-        p.zval += FW_SIZE;
-        checkPtr( p );
-    }
-
-    inline void decrement( forthword_t& p ) const {
-        p.zval -= FW_SIZE;
-        checkPtr( p );
-    }
-
     inline void next() {
         // terminates every FORTH wrote written in machine code
-        wa = indirect( wp ); increment( wp ); // WA := [WP]+
-        forthword_t tmp = indirect( wa ); tmp.cbfn( this );  // JUMP [WA]
+        wa = *wp.fwp++; // WA := [WP]+
+        wa.fwp->cbfn( this );  // JUMP [WA]
     }
 
     // callback for NEXT that can be stored inside the VM
@@ -102,8 +81,8 @@ protected:
 
     inline void docol() {
         // starts the processing of every FORTH word implemented in FORTH
-        decrement( rsp ); indirect( rsp ) = wp;     // -[RSP] := WP
-        increment( wa ); wp = wa;   // WP := +WA
+        *(--rsp.fwp) = wp;     // -[RSP] := WP
+        wp.fwp = ++wa.fwp;   // WP := +WA
         next();
     }
 
@@ -112,7 +91,7 @@ protected:
 
     inline void exit() {
         // terminates the processing of any FORTH word implemented in FORTH
-        wp = indirect( rsp ); increment( rsp );     // WP := [RSP]+
+        wp = *rsp.fwp++;     // WP := [RSP]+
         next();
     }
 
