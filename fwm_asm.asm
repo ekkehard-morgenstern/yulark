@@ -50,6 +50,14 @@
 ; hit that comes with that. Originally, I implemented it all in
 ; C++, but wasn't satisfied with the results.
 
+                        ; terminates every FORTH word written in machine code
+                        %macro  fwm_next 0
+                        mov     r12,[r13]   ; WA := [WP]+
+                        add     r13,8
+                        mov     rax,[r12]   ; JUMP [WA]
+                        jmp     rax
+                        %endmacro
+
                         ; rsi - memory block
                         ; rdi - memory size
                         ; rdx - return stack size
@@ -76,7 +84,7 @@ fwm_run                 enter   0,0
                         mov     r13,rcx
 
                         ; go to NEXT
-                        jmp     fwm_next
+                        fwm_next
 
                         ; terminates the execution of FORTH code
 fwm_term                pop     rbx
@@ -87,11 +95,6 @@ fwm_term                pop     rbx
                         leave
                         ret
 
-                        ; terminates every FORTH word written in machine code
-fwm_next                mov     r12,[r13]   ; WA := [WP]+
-                        add     r13,8
-                        mov     rax,[r12]   ; JUMP [WA]
-                        jmp     rax
 
 ;                       +--------------------+
 ;                       |  link to previous  |
@@ -110,9 +113,9 @@ fwm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r14],r13
                         lea     r13,[r12+8] ; WP := WA + 1
                         ; begin processing word definition
-                        jmp     fwm_next
+                        fwm_next
 
                         ; terminates any FORTH implemented word
 fwm_exit                mov     r13,[r14]   ; WP := [RSP]+
                         add     r14,8
-                        jmp     fwm_next
+                        fwm_next
