@@ -24,15 +24,3 @@
 */
 
 #include "forthvm.hpp"
-
-void ForthVM::next_cb( ForthVM* vm ) {
-    vm->next();
-}
-
-void ForthVM::docol_cb( ForthVM* vm ) {
-    vm->docol();
-}
-
-void ForthVM::exit_cb( ForthVM* vm ) {
-    vm->exit();
-}
