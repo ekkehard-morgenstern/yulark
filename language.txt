@@ -57,13 +57,13 @@ Minimales FORTH-System
     Wortdefinitionen (Dictionary-Eintraege)
 
         +--------------------+
-        |  code-addr / DOCOL |
-        +--------------------+
         |  link to previous  |
         +-----+--------------+
         | NLF | NAME ...     |
         +--------------------+
         | NAME ... PAD 0 0 0 | (optional, remainder of name and pad bytes)
+        +--------------------+
+        |  code-addr / DOCOL |
         +--------------------+
         |  definition ...    | word-addresses
         +--------------------+

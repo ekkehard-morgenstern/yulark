@@ -84,13 +84,13 @@ extern "C" void fwm_run( void* mem, size_t siz, size_t rsz, void* initwa );
 Word definitions look like this:
 
         +--------------------+
-        |  code-addr / DOCOL |
-        +--------------------+
         |  link to previous  |
         +-----+--------------+
         | NLF | NAME ...     |
         +--------------------+
         | NAME ... PAD 0 0 0 | (optional, remainder of name and pad bytes)
+        +--------------------+
+        |  code-addr / DOCOL |
         +--------------------+
         |  definition ...    | word-addresses
         +--------------------+
