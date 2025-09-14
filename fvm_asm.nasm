@@ -205,6 +205,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         DEFASM  "/",DIVINT,0
                         mov     rax,[r15]
+                        cqo                     ; sign-extend into rdx
                         idiv    qword [r15+8]
                         add     r15,8
                         mov     [r15],rax
@@ -212,6 +213,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         DEFASM  "MOD",MODINT,0
                         mov     rax,[r15]
+                        cqo                     ; sign-extend into rdx
                         idiv    qword [r15+8]
                         add     r15,8
                         mov     [r15],rdx
