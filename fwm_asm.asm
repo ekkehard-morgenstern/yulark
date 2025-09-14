@@ -35,6 +35,21 @@
 ;       WA      - word address              (r12)
 ;       DP      - dictionary pointer        (rbx)
 
+; This implements the classic threaded-code model of FORTH
+; based on information from the file "jonesforth/jonesforth.S"
+; by Richard W. M. Jones in the repository of Dave Gauer's
+; NASMJF port, which can be found at
+; https://ratfactor.com/repos/nasmjf/files.html
+; Both are in the Public Domain.
+; My implementation uses x86-64 assembly code, and I'm using
+; registers not affected by calling library functions.
+; These are r12-r15 and rbx. Also, I refrained from using the
+; CPU's stack pointer rsp and frame pointer rbp, since using them
+; for any other purpose than C context would make debugging the
+; code using gdb really hard. I accepted the small performance
+; hit that comes with that. Originally, I implemented it all in
+; C++, but wasn't satisfied with the results.
+
                         ; rsi - memory block
                         ; rdi - memory size
                         ; rdx - return stack size
