@@ -170,3 +170,9 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     r13,[r14]   ; WP := [RSP]+
                         add     r14,8
                         NEXT
+
+
+                        section .rodata
+
+                        align   8
+fvm_last_sysword        dq      LINKBACK
