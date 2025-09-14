@@ -62,41 +62,49 @@ public:
     }
 };
 
+extern "C" void fwm_run( void* mem, size_t siz, size_t rsz, void* initwa );
+
+#define FORTHVM_MEMSIZE 131072U     // 128K
+#define FVM_RETSTKSIZE  8192U       // 8K
+
+/*
+    memory is organized like so:
+
+        +--------------------------------+
+        |       dictionary space         |
+        .                                .
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        .                                .
+        |     parameter stack space      |
+        +--------------------------------+
+        |      return stack space        |
+        +--------------------------------+
+
+Word definitions look like this:
+
+        +--------------------+
+        |  code-addr / DOCOL |
+        +--------------------+
+        |  link to previous  |
+        +-----+--------------+
+        | NLF | NAME ...     |
+        +--------------------+
+        | NAME ... PAD 0 0 0 | (optional, remainder of name and pad bytes)
+        +--------------------+
+        |  definition ...    | word-addresses
+        +--------------------+
+
+
+
+*/
+
+
 class ForthVM : public Buffer {
 
-protected:
-    forthword_t             psp;    // parameter stack pointer (zval)
-    forthword_t             rsp;    // return stack pointer (zval)
-    forthword_t             wa;     // word address (zval into buffer)
-    forthword_t             wp;     // word pointer (zval into buffer)
+public:
+    // ForthVM();
 
-    inline void next() {
-        // terminates every FORTH wrote written in machine code
-        wa = *wp.fwp++; // WA := [WP]+
-        wa.fwp->cbfn( this );  // JUMP [WA]
-    }
-
-    // callback for NEXT that can be stored inside the VM
-    static void next_cb( ForthVM* vm );
-
-    inline void docol() {
-        // starts the processing of every FORTH word implemented in FORTH
-        *(--rsp.fwp) = wp;     // -[RSP] := WP
-        wp.fwp = ++wa.fwp;   // WP := +WA
-        next();
-    }
-
-    // callback for DOCOL that can be stored inside the VM
-    static void docol_cb( ForthVM* vm );
-
-    inline void exit() {
-        // terminates the processing of any FORTH word implemented in FORTH
-        wp = *rsp.fwp++;     // WP := [RSP]+
-        next();
-    }
-
-    // callback for EXIT that can be stored inside the VM
-    static void exit_cb( ForthVM* vm );
 };
 
 #endif

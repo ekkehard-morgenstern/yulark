@@ -93,10 +93,33 @@ fwm_next                mov     r12,[r13]   ; WA := [WP]+
                         mov     rax,[r12]   ; JUMP [WA]
                         jmp     rax
 
+;                       +--------------------+
+;                       |       DOCOL        |
+;                       +--------------------+
+;                       |  link to previous  |
+;                       +-----+--------------+
+;                       | NLF | NAME ...     |
+;                       +--------------------+
+;                       | NAME ... PAD 0 0 0 | (optional name/pad bytes)
+;                       +--------------------+
+;                       |  definition ...    | word-addresses
+;                       +--------------------+
+
                         ; starts the processing of every FORTH implemented word
 fwm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r14],r13
-                        lea     r13,[r12+8] ; WP := +WA
+                        lea     r13,[r12+16] ; WP := WA + 2
+                        ; r13 is now at the NLF field
+                        ; read name length
+                        mov     al,[r13]
+                        ; ignore the flags, round up to word boundary
+                        and     al,0x1f
+                        add     al,7
+                        and     al,0xf8
+                        ; add to word pointer (r13)
+                        movzx   rax,al
+                        add     r13,rax
+                        ; begin processing word definition
                         jmp     fwm_next
 
                         ; terminates any FORTH implemented word
