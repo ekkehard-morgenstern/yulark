@@ -26,7 +26,7 @@
 
                         section     .text
 
-                        global      fvm_run,fvm_docol,fvm_exit,fvm_term
+                        global      fvm_run
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -58,6 +58,9 @@
                         jmp     rax
                         %endmacro
 
+                        ; code is ideally aligned on 32-byte boundary
+                        align   32
+
                         ; rsi - memory block
                         ; rdi - memory size
                         ; rdx - return stack size
@@ -86,6 +89,9 @@ fvm_run                 enter   0,0
                         ; go to NEXT
                         NEXT
 
+                        ; code is ideally aligned on 32-byte boundary
+                        align   32
+
                         ; terminates the execution of FORTH code
 fvm_term                pop     rbx
                         pop     r12
@@ -94,7 +100,6 @@ fvm_term                pop     rbx
                         pop     r15
                         leave
                         ret
-
 
 ;                       +--------------------+
 ;                       |  link to previous  |
@@ -108,6 +113,9 @@ fvm_term                pop     rbx
 ;                       |  definition ...    | word-addresses
 ;                       +--------------------+
 
+                        ; code is ideally aligned on 32-byte boundary
+                        align   32
+
                         ; starts the processing of every FORTH implemented word
 fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r14],r13
@@ -115,7 +123,50 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; begin processing word definition
                         NEXT
 
+%define LINKBACK        0
+
+                        ; define a colon definition
+                        ; parameters: name, label, flags
+                        %macro DEFCOL 3
+                        %strlen cnt %1
+                        section .rodata
+                        align   8
+%%begin                 dq      LINKBACK
+%define LINKBACK        %%begin
+                        db      %3 + cnt
+                        db      %1
+                        align   8
+                        global  %2
+%2                      dq      fvm_docol
+                        ; rest defined by user
+                        %endmacro
+
+                        ; define an assembly code definition
+                        ; parameters name, label, flags
+                        %macro DEFASM 3
+                        %strlen cnt %1
+                        section .rodata
+                        align   8
+%%begin                 dq      LINKBACK
+%define LINKBACK        %%begin
+                        db      %3 + cnt
+                        db      %1
+                        align   8
+                        global  %2
+%2                      dq      %%implementation
+                        section .text
+                        ; code is ideally aligned on 32-byte boundary
+                        align   32
+%%implementation:
+                        ; rest defined by user
+                        %endmacro
+
+                        ; in this implementation, QUIT actually quits FORTH
+                        DEFASM  "QUIT",QUIT,0
+                        jmp     fvm_term
+
                         ; terminates any FORTH implemented word
-fvm_exit                mov     r13,[r14]   ; WP := [RSP]+
+                        DEFASM  "EXIT",EXIT,0
+                        mov     r13,[r14]   ; WP := [RSP]+
                         add     r14,8
                         NEXT
