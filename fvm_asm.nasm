@@ -171,6 +171,115 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         add     r14,8
                         NEXT
 
+                        ; pushes a literal (stored in the following word)
+                        ; onto the parameter stack
+                        DEFASM  "LIT",LIT,0
+                        mov     rax,[r13]
+                        add     r13,8
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; basic computations
+
+                        DEFASM  "+",ADDINT,0
+                        mov     rax,[r15]
+                        add     rax,[r15+8]
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "-",SUBINT,0
+                        mov     rax,[r15]
+                        sub     rax,[r15+8]
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "*",MULINT,0
+                        mov     rax,[r15]
+                        imul    qword [r15+8]
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "/",DIVINT,0
+                        mov     rax,[r15]
+                        idiv    qword [r15+8]
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "MOD",MODINT,0
+                        mov     rax,[r15]
+                        idiv    qword [r15+8]
+                        add     r15,8
+                        mov     [r15],rdx
+                        NEXT
+
+                        DEFASM  "FPUINIT",FPUINIT,0
+                        finit
+                        NEXT
+
+                        DEFASM  "I2F",I2F,0
+                        fild    qword [r15]
+                        fstp    qword [r15]
+                        NEXT
+
+                        DEFASM  "F2I",F2I,0
+                        fld     qword [r15]
+                        frndint
+                        fistp   qword [r15]
+                        NEXT
+
+                        DEFASM  "F+",ADDFLT,0
+                        fld     qword [r15+8]
+                        fld     qword [r15]
+                        faddp
+                        add     r15,8
+                        fstp    qword [r15]
+                        NEXT
+
+                        DEFASM  "F-",SUBFLT,0
+                        fld     qword [r15+8]
+                        fld     qword [r15]
+                        fsubp
+                        add     r15,8
+                        fstp    qword [r15]
+                        NEXT
+
+                        DEFASM  "F*",MULFLT,0
+                        fld     qword [r15+8]
+                        fld     qword [r15]
+                        fmulp
+                        add     r15,8
+                        fstp    qword [r15]
+                        NEXT
+
+                        DEFASM  "F/",DIVFLT,0
+                        fld     qword [r15+8]
+                        fld     qword [r15]
+                        fdivp
+                        add     r15,8
+                        fstp    qword [r15]
+                        NEXT
+
+                        DEFASM  "FMOD",MODFLT,0
+                        fld     qword [r15]
+                        fld     qword [r15+8]
+                        xor     rax,rax
+                        push    rax
+.repeat                 fprem1              ; compute partial remainder
+                        fstcw   word [rsp]  ; get FPU status word
+                        mov     ax,[rsp]
+                        and     ax,0x0400   ; test C2 FPU flag
+                        jnz     .repeat     ; loop until zero
+                        pop     rax
+                        add     r15,8
+                        fstp    qword [r15]
+                        ffree   st0
+                        fincstp
+                        NEXT
 
                         section .rodata
 
