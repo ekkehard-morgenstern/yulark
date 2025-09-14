@@ -26,7 +26,7 @@
 
                         section     .text
 
-                        global      fwm_run,fwm_next,fwm_docol,fwm_exit,fwm_term
+                        global      fvm_run,fvm_docol,fvm_exit,fvm_term
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -51,7 +51,7 @@
 ; C++, but wasn't satisfied with the results.
 
                         ; terminates every FORTH word written in machine code
-                        %macro  fwm_next 0
+                        %macro  NEXT 0
                         mov     r12,[r13]   ; WA := [WP]+
                         add     r13,8
                         mov     rax,[r12]   ; JUMP [WA]
@@ -62,7 +62,7 @@
                         ; rdi - memory size
                         ; rdx - return stack size
                         ; rcx - initial word address
-fwm_run                 enter   0,0
+fvm_run                 enter   0,0
                         push    r15
                         push    r14
                         push    r13
@@ -84,10 +84,10 @@ fwm_run                 enter   0,0
                         mov     r13,rcx
 
                         ; go to NEXT
-                        fwm_next
+                        NEXT
 
                         ; terminates the execution of FORTH code
-fwm_term                pop     rbx
+fvm_term                pop     rbx
                         pop     r12
                         pop     r13
                         pop     r14
@@ -109,13 +109,13 @@ fwm_term                pop     rbx
 ;                       +--------------------+
 
                         ; starts the processing of every FORTH implemented word
-fwm_docol               sub     r14,8       ; -[RSP] := WP
+fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r14],r13
                         lea     r13,[r12+8] ; WP := WA + 1
                         ; begin processing word definition
-                        fwm_next
+                        NEXT
 
                         ; terminates any FORTH implemented word
-fwm_exit                mov     r13,[r14]   ; WP := [RSP]+
+fvm_exit                mov     r13,[r14]   ; WP := [RSP]+
                         add     r14,8
-                        fwm_next
+                        NEXT
