@@ -54,7 +54,8 @@
                         ; rdi - memory size
                         ; rdx - return stack size
                         ; rcx - initial word address
-fwm_run                 push    r15
+fwm_run                 enter   0,0
+                        push    r15
                         push    r14
                         push    r13
                         push    r12
@@ -83,6 +84,7 @@ fwm_term                pop     rbx
                         pop     r13
                         pop     r14
                         pop     r15
+                        leave
                         ret
 
                         ; terminates every FORTH word written in machine code
