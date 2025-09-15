@@ -441,7 +441,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         DEFASM  "PICK",PICK,0
                         mov     rax,[r15]
                         dec     rax
-                        mov     rax,[rsp+rax*8]
+                        mov     rax,[r15+rax*8]
                         mov     [r15],rax
                         NEXT
 
