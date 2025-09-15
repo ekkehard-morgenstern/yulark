@@ -69,6 +69,12 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
+                        ; rbp-0x1e8     PFILE handle for PAD buffer
+%define PFILE           0x1e8
+                        ; rbp-0x1f0     FILL state of PAD buffer
+%define PFILL           0x1f0
+                        ; rbp-0x1f8     POSition in PAD buffer
+%define PPOS            0x1f8
                         ; rbp-0x200     LATEST word definition
 %define LATEST          0x200
 
@@ -95,6 +101,11 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; set up LATEST
                         mov     rax,[fvm_last_sysword]
                         mov     [rbp-LATEST],rax
+
+                        ; set up PPOS / PFILL
+                        xor     rax,rax
+                        mov     [rbp-PFILL],rax
+                        mov     [rbp-PPOS],rax
 
                         ; go to NEXT
                         NEXT
@@ -198,6 +209,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         add     rax,[r15]
                         add     r15,8
                         mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "1+",ADDONE,0
+                        inc     qword [r15]
+                        NEXT
+
+                        DEFASM  "1-",SUBONE,0
+                        dec     qword [r15]
                         NEXT
 
                         DEFASM  "-",SUBINT,0
@@ -460,7 +479,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 .end                    NEXT
 
                         ; returns the address of the latest word definition
-                        DEFASM  "LATEST",PUSHLATEST,0
+                        DEFASM  "@LATEST",PUSHLATEST,0
                         mov     rax,[rbp-LATEST]
                         sub     r15,8
                         mov     [r15],rax
@@ -472,8 +491,68 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rbx
                         NEXT
 
+                        ; returns the position in the PAD buffer
+                        DEFASM  "@PPOS",PUSHPOS,0
+                        mov     rax,[rbp-PPOS]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
 
+                        ; sets the position in the PAD buffer
+                        DEFASM  "!PPOS",POPPOS,0
+                        mov     rax,[r15]
+                        add     r15,8
+                        mov     [rbp-PPOS],rax
+                        NEXT
 
+                        ; returns the fill state of the PAD buffer
+                        DEFASM  "@PFILL",PUSHFILL,0
+                        mov     rax,[rbp-PFILL]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; sets the fill state of the PAD buffer
+                        DEFASM  "!PFILL",POPFILL,0
+                        mov     rax,[r15]
+                        add     r15,8
+                        mov     [rbp-PFILL],rax
+                        NEXT
+
+                        ; returns the file handle for the PAD buffer
+                        DEFASM  "@PFILE",PUSHFILE,0
+                        mov     rax,[rbp-PFILE]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; returns the address of the PAD buffer
+                        DEFASM  "PAD",PUSHPAD,0
+                        lea     rax,[rbp-PAD]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; read bytes from a system file
+                        DEFASM  "SYSREAD",SYSREAD,0
+                        mov     rdx,[r15+16]
+                        mov     rsi,[r15+8]
+                        mov     rdi,[r15]
+                        add     r15,16
+%define __NR_read       0
+                        mov     rax,__NR_read
+                        syscall
+                        mov     [r15],rax
+                        NEXT
+
+                        ; read entire PAD
+                        DEFCOL  "PADREAD",PADREAD,IMMEDIATE
+                        dq      PUSHFILE
+                        dq      PUSHPAD
+                        dq      LIT,256
+                        dq      SYSREAD
+                        dq      POPFILL
+                        dq      EXIT
 
                         section .rodata
 
