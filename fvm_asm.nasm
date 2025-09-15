@@ -65,7 +65,13 @@
                         ; rdi - memory size
                         ; rdx - return stack size
                         ; rcx - initial word address
-fvm_run                 enter   0,0
+fvm_run                 enter   0x200,0     ; 512 bytes of local storage
+
+                        ; rbp-0x100     beginning of 256 bytes PAD space
+%define PAD             0x100
+                        ; rbp-0x200     LATEST word definition
+%define LATEST          0x200
+
                         push    r15
                         push    r14
                         push    r13
@@ -85,6 +91,10 @@ fvm_run                 enter   0,0
 
                         ; set up WP
                         mov     r13,rcx
+
+                        ; set up LATEST
+                        mov     rax,[fvm_last_sysword]
+                        mov     [rbp-LATEST],rax
 
                         ; go to NEXT
                         NEXT
@@ -124,6 +134,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
 %define LINKBACK        0
+%define IMMEDIATE       0x20    ; immediate mode word, always executed
 
                         ; define a colon definition
                         ; parameters: name, label, flags
@@ -447,6 +458,22 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         jmp     .end
 .eql                    mov     rax,0           ; equal
 .end                    NEXT
+
+                        ; returns the address of the latest word definition
+                        DEFASM  "LATEST",PUSHLATEST,0
+                        mov     rax,[rbp-LATEST]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; returns the address of the next dictionary location
+                        DEFASM  "HERE",PUSHHERE,0
+                        sub     r15,8
+                        mov     [r15],rbx
+                        NEXT
+
+
+
 
                         section .rodata
 
