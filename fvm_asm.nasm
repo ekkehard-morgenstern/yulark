@@ -72,6 +72,10 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
 
+                        ; ebp-0x1d0     STKLWR bound
+%define STKLWR          0x1d0
+                        ; ebp-0x1d8     STKUPR bound
+%define STKUPR          0x1d8
                         ; ebp-0x1e0     OFILE handle
 %define OFILE           0x1e0
                         ; rbp-0x1e8     PFILE handle for PAD buffer
@@ -96,9 +100,17 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; set up PSP
                         mov     r15,r14
                         sub     r15,rdx
+                        mov     [rbp-STKUPR],r15
 
                         ; set up DP
                         mov     rbx,rsi
+
+                        ; the middle between PSP and DP is the stack lower bound
+                        mov     rax,r15
+                        sub     rax,rbx
+                        shr     rax,1
+                        add     rax,rbx
+                        mov     [rbp-STKLWR],rax
 
                         ; set up WP
                         mov     r13,rcx
@@ -133,6 +145,53 @@ fvm_term                pop     rbx
                         pop     r15
                         leave
                         ret
+
+fvm_stkovf              mov     rsi,2   ; STDERR
+                        lea     rdi,.ovftext
+%define OVFTEXT         "? stack overflow"
+                        %strlen cnt OVFTEXT
+                        mov     rdx,cnt+1
+%define __NR_write      1
+                        mov     rax,__NR_write
+                        syscall
+                        jmp     fvm_term
+
+                        section .rodata
+.ovftext                db      OVFTEXT,10
+
+                        section .text
+
+fvm_stkunf              mov     rsi,2   ; STDERR
+                        lea     rdi,.unftext
+%define UNFTEXT         "? stack underflow"
+                        %strlen cnt UNFTEXT
+                        mov     rdx,cnt+1
+                        mov     rax,__NR_write
+                        syscall
+                        jmp     fvm_term
+
+                        section .rodata
+.unftext                db      UNFTEXT,10
+
+                        section .text
+
+                        ; check for stack overflow
+                        %macro  CHKOVF 1
+                        lea     r8,[r15 - (%1 * 8)]
+                        cmp     r8,qword [rbp - STKLWR]
+                        jae     %%okay
+                        jmp     fvm_stkovf
+%%okay:
+                        %endmacro
+
+                        ; check for stack underflow
+                        %macro  CHKUNF 1
+                        lea     r8,[r15 + (%1 * 8)]
+                        cmp     r8,qword [rbp - STKUPR]
+                        jbe     %%okay
+                        jmp     fvm_stkunf
+%%okay:
+                        %endmacro
 
 ;                       +--------------------+
 ;                       |  link to previous  |
@@ -208,6 +267,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; pushes a literal (stored in the following word)
                         ; onto the parameter stack
                         DEFASM  "LIT",LIT,0
+                        CHKOVF  1
                         mov     rax,[r13]
                         add     r13,8
                         sub     r15,8
@@ -217,6 +277,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; basic computations
 
                         DEFASM  "+",ADDINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         add     rax,[r15]
                         add     r15,8
@@ -224,14 +285,17 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "1+",ADDONE,0
+                        CHKUNF  1
                         inc     qword [r15]
                         NEXT
 
                         DEFASM  "1-",SUBONE,0
+                        CHKUNF  1
                         dec     qword [r15]
                         NEXT
 
                         DEFASM  "-",SUBINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         sub     rax,[r15]
                         add     r15,8
@@ -239,6 +303,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "*",MULINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         imul    qword [r15]
                         add     r15,8
@@ -246,6 +311,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "/",DIVINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
@@ -254,6 +320,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "*/",MULDIVINT,0
+                        CHKUNF  3
                         mov     rax,[r15+16]
                         imul    qword [r15+8]
                         idiv    qword [r15]
@@ -262,6 +329,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "/MOD",DIVMODINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
@@ -270,6 +338,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "MOD",MODINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
@@ -278,6 +347,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "<0",LTZEROINT,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         setl    al
@@ -286,6 +356,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "<=0",LEZEROINT,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         setle   al
@@ -294,6 +365,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  ">0",GTZEROINT,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         setg    al
@@ -302,6 +374,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  ">=0",GEZEROINT,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         setge   al
@@ -310,6 +383,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "=0",EQZEROINT,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         sete    al
@@ -318,6 +392,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "<>0",NEZEROINT,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         setne   al
@@ -326,6 +401,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "<",LTINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setl    al
@@ -335,6 +411,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "<=",LEINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setle   al
@@ -344,6 +421,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  ">",GTINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setg    al
@@ -353,6 +431,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  ">=",GEINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setge   al
@@ -362,6 +441,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "=",EQINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         sete    al
@@ -371,6 +451,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "<>",NEINT,0
+                        CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setne   al
@@ -380,12 +461,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "@",FETCH,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         mov     rax,[rax]
                         mov     [r15],rax
                         NEXT
 
                         DEFASM  "!",STORE,0
+                        CHKUNF  2
                         mov     rdx,[r15+8]
                         mov     rax,[r15]
                         mov     [rax],rdx
@@ -393,12 +476,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "CELL",CELL,0
+                        CHKOVF  1
                         mov     rax,8   ; return size of memory cell
                         sub     r15,rax
                         mov     [r15],rax
                         NEXT
 
                         DEFASM  "CELLS",CELLS,0
+                        CHKUNF  1
                         mov     rax,[r15]   ; compute size of n cells
                         shl     rax,3
                         mov     [r15],rax
@@ -406,6 +491,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; duplicate word on the stack
                         DEFASM  "DUP",DUP,0
+                        CHKUNF  1
+                        CHKOVF  1
                         mov     rax,[r15]
                         sub     r15,8
                         mov     [r15],rax
@@ -413,6 +500,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; swap words on stack
                         DEFASM  "SWAP",SWAP,0
+                        CHKUNF  2
                         mov     rax,[r15]
                         mov     rdx,[r15+8]
                         mov     [r15+8],rax
@@ -421,6 +509,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; rotate words on stack
                         DEFASM  "ROT",ROT,0
+                        CHKUNF  3
                         ; (n1 n2 n3) -- (n2 n3 n1)
                         mov     rax,[r15+16]    ; n1
                         mov     rdx,[r15+8]     ; n2
@@ -432,6 +521,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; over
                         DEFASM  "OVER",OVER,0
+                        CHKUNF  2
+                        CHKOVF  1
                         mov     rax,[r15+8]
                         sub     r15,8
                         mov     [r15],rax
@@ -439,6 +530,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; pick word from stack
                         DEFASM  "PICK",PICK,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         dec     rax
                         mov     rax,[r15+rax*8]
@@ -447,6 +539,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; drop
                         DEFASM  "DROP",DROP,0
+                        CHKUNF  1
                         add     r15,8
                         NEXT
 
@@ -455,17 +548,20 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "I2F",I2F,0
+                        CHKUNF  1
                         fild    qword [r15]
                         fstp    qword [r15]
                         NEXT
 
                         DEFASM  "F2I",F2I,0
+                        CHKUNF  1
                         fld     qword [r15]
                         frndint
                         fistp   qword [r15]
                         NEXT
 
                         DEFASM  "F+",ADDFLT,0
+                        CHKUNF  2
                         fld     qword [r15+8]   ; st1
                         fld     qword [r15]     ; st0
                         faddp
@@ -474,6 +570,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "F-",SUBFLT,0
+                        CHKUNF  2
                         fld     qword [r15+8]   ; st1
                         fld     qword [r15]     ; st0
                         fsubp
@@ -482,6 +579,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "F*",MULFLT,0
+                        CHKUNF  2
                         fld     qword [r15+8]   ; st1
                         fld     qword [r15]     ; st0
                         fmulp
@@ -490,6 +588,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "F/",DIVFLT,0
+                        CHKUNF  2
                         fld     qword [r15+8]   ; st1
                         fld     qword [r15]     ; st0
                         fdivp
@@ -498,6 +597,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "FMOD",MODFLT,0
+                        CHKUNF  2
                         fld     qword [r15]     ; st1
                         fld     qword [r15+8]   ; st0
                         xor     rax,rax
@@ -515,6 +615,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "FCOMP",COMPFLT,0
+                        CHKUNF  2
                         fld     qword [r15+8]   ; st0
                         fcomp   qword [r15]     ; cmp st0,src
                         xor     rax,rax
@@ -534,10 +635,13 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 .lwr                    mov     rax,-1          ; lower
                         jmp     .end
 .eql                    mov     rax,0           ; equal
-.end                    NEXT
+.end                    add     r15,8
+                        mov     [r15],rax
+                        NEXT
 
                         ; to-latest: returns the address of the LATEST variable
                         DEFASM  ">LATEST",TOLATEST,0
+                        CHKOVF  1
                         lea     rax,[rbp-LATEST]
                         sub     r15,8
                         mov     [r15],rax
@@ -545,12 +649,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; returns the address of the next dictionary location
                         DEFASM  "HERE",PUSHHERE,0
+                        CHKOVF  1
                         sub     r15,8
                         mov     [r15],rbx
                         NEXT
 
                         ; to-in returns the address of the PAD offset
                         DEFASM  ">IN",TOIN,0
+                        CHKOVF  1
                         lea     rax,[rbp-PPOS]
                         sub     r15,8
                         mov     [r15],rax
@@ -558,6 +664,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; returns the address of the number of chars in the PAD
                         DEFASM  ">MAX",TOMAX,0
+                        CHKOVF  1
                         lea     rax,[rbp-PFILL]
                         sub     r15,8
                         mov     [r15],rax
@@ -565,6 +672,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; returns the address of the file handle for the PAD
                         DEFASM  ">FILE",TOFILE,0
+                        CHKOVF  1
                         lea     rax,[rbp-PFILE]
                         sub     r15,8
                         mov     [r15],rax
@@ -572,6 +680,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; returns the address of the file handle for output
                         DEFASM  ">OUT",TOOUT,0
+                        CHKOVF  1
                         lea     rax,[rbp-OFILE]
                         sub     r15,8
                         mov     [r15],rax
@@ -579,6 +688,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; returns the address of the PAD buffer
                         DEFASM  "PAD",PUSHPAD,0
+                        CHKOVF  1
                         lea     rax,[rbp-PAD]
                         sub     r15,8
                         mov     [r15],rax
@@ -586,6 +696,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; converts error code to 0
                         DEFASM  "?ERR0",ERR2ZERO,0
+                        CHKUNF  1
                         mov     rax,[r15]
                         cmp     rax,0
                         jge     .good
@@ -595,6 +706,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; read bytes from a system file
                         DEFASM  "SYSREAD",SYSREAD,0
+                        CHKUNF  3
                         mov     rsi,[r15+16]    ; file handle
                         mov     rdi,[r15+8]     ; buffer
                         mov     rdx,[r15]       ; count
@@ -607,11 +719,11 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; write bytes to a system file
                         DEFASM  "SYSWRITE",SYSWRITE,0
+                        CHKUNF  3
                         mov     rsi,[r15+16]    ; file handle
                         mov     rdi,[r15+8]     ; buffer
                         mov     rdx,[r15]       ; count
                         add     r15,16
-%define __NR_write      1
                         mov     rax,__NR_write
                         syscall
                         mov     [r15],rax
