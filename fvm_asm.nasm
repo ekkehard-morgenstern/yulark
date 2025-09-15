@@ -49,6 +49,8 @@
 ; code using gdb really hard. I accepted the small performance
 ; hit that comes with that. Originally, I implemented it all in
 ; C++, but wasn't satisfied with the results.
+; This code contains no global variables, and is hence multithread-
+; capable. If you make modifications, keep that in mind.
 
                         ; terminates every FORTH word written in machine code
                         %macro  NEXT 0
