@@ -71,6 +71,9 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
+
+                        ; ebp-0x1e0     OFILE handle
+%define OFILE           0x1e0
                         ; rbp-0x1e8     PFILE handle for PAD buffer
 %define PFILE           0x1e8
                         ; rbp-0x1f0     FILL state of PAD buffer
@@ -111,6 +114,10 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
 
                         ; set up PFILE
                         mov     [rbp-PFILE],rax     ; 0 = STDIN
+
+                        ; set up OFILE
+                        inc     rax
+                        mov     [rbp-OFILE],rax     ; 1 = STDOUT
 
                         ; go to NEXT
                         NEXT
@@ -397,6 +404,52 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; duplicate word on the stack
+                        DEFASM  "DUP",DUP,0
+                        mov     rax,[r15]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; swap words on stack
+                        DEFASM  "SWAP",SWAP,0
+                        mov     rax,[r15]
+                        mov     rdx,[r15+8]
+                        mov     [r15+8],rax
+                        mov     [r15],rdx
+                        NEXT
+
+                        ; rotate words on stack
+                        DEFASM  "ROT",ROT,0
+                        ; (n1 n2 n3) -- (n2 n3 n1)
+                        mov     rax,[r15+16]    ; n1
+                        mov     rdx,[r15+8]     ; n2
+                        mov     rcx,[r15]       ; n3
+                        mov     [r15+16],rdx    ; n2
+                        mov     [r15+8],rcx     ; n3
+                        mov     [r15],rax       ; n1
+                        NEXT
+
+                        ; over
+                        DEFASM  "OVER",OVER,0
+                        mov     rax,[r15+8]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; pick word from stack
+                        DEFASM  "PICK",PICK,0
+                        mov     rax,[r15]
+                        dec     rax
+                        mov     rax,[rsp+rax*8]
+                        mov     [r15],rax
+                        NEXT
+
+                        ; drop
+                        DEFASM  "DROP",DROP,0
+                        add     r15,8
+                        NEXT
+
                         DEFASM  "FPUINIT",FPUINIT,0
                         finit
                         NEXT
@@ -517,6 +570,13 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; returns the address of the file handle for output
+                        DEFASM  ">OUT",TOOUT,0
+                        lea     rax,[rbp-OFILE]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; returns the address of the PAD buffer
                         DEFASM  "PAD",PUSHPAD,0
                         lea     rax,[rbp-PAD]
@@ -545,8 +605,20 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; write bytes to a system file
+                        DEFASM  "SYSWRITE",SYSWRITE,0
+                        mov     rsi,[r15+16]    ; file handle
+                        mov     rdi,[r15+8]     ; buffer
+                        mov     rdx,[r15]       ; count
+                        add     r15,16
+%define __NR_write      1
+                        mov     rax,__NR_write
+                        syscall
+                        mov     [r15],rax
+                        NEXT
+
                         ; read entire PAD
-                        DEFCOL  "PADREAD",PADREAD,IMMEDIATE
+                        DEFCOL  "PADREAD",PADREAD,0
                         dq      TOFILE      ; >FILE
                         dq      FETCH       ; @
                         dq      PUSHPAD     ; PAD
@@ -558,6 +630,18 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dq      LIT,0       ; 0
                         dq      TOIN        ; >IN
                         dq      STORE       ; !
+                        dq      EXIT
+
+                        ; type text to output
+                        DEFCOL  "TYPE",TYPEOUT,0    ; ( addr n )
+                        dq      TOOUT       ; >OUT
+                        dq      FETCH       ; @
+                        ; ( addr n ofile )
+                        ; ( n ofile addr ) after 1st ROT
+                        ; ( ofile addr n ) after 2nd ROT
+                        dq      ROT,ROT     ; ROT ROT
+                        dq      SYSWRITE
+                        dq      DROP        ; DROP
                         dq      EXIT
 
                         section .rodata
