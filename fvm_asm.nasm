@@ -481,9 +481,9 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 .eql                    mov     rax,0           ; equal
 .end                    NEXT
 
-                        ; returns the address of the latest word definition
-                        DEFASM  "@LATEST",PUSHLATEST,0
-                        mov     rax,[rbp-LATEST]
+                        ; to-latest: returns the address of the LATEST variable
+                        DEFASM  ">LATEST",TOLATEST,0
+                        lea     rax,[rbp-LATEST]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
@@ -494,37 +494,23 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rbx
                         NEXT
 
-                        ; returns the position in the PAD buffer
-                        DEFASM  "@PPOS",PUSHPOS,0
-                        mov     rax,[rbp-PPOS]
+                        ; to-in returns the address of the PAD offset
+                        DEFASM  ">IN",TOIN,0
+                        lea     rax,[rbp-PPOS]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        ; sets the position in the PAD buffer
-                        DEFASM  "!PPOS",POPPOS,0
-                        mov     rax,[r15]
-                        add     r15,8
-                        mov     [rbp-PPOS],rax
-                        NEXT
-
-                        ; returns the fill state of the PAD buffer
-                        DEFASM  "@PFILL",PUSHFILL,0
-                        mov     rax,[rbp-PFILL]
+                        ; returns the address of the number of chars in the PAD
+                        DEFASM  ">MAX",TOMAX,0
+                        lea     rax,[rbp-PFILL]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        ; sets the fill state of the PAD buffer
-                        DEFASM  "!PFILL",POPFILL,0
-                        mov     rax,[r15]
-                        add     r15,8
-                        mov     [rbp-PFILL],rax
-                        NEXT
-
-                        ; returns the file handle for the PAD buffer
-                        DEFASM  "@PFILE",PUSHFILE,0
-                        mov     rax,[rbp-PFILE]
+                        ; returns the address of the file handle for the PAD
+                        DEFASM  ">FILE",TOFILE,0
+                        lea     rax,[rbp-PFILE]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
@@ -534,6 +520,15 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         lea     rax,[rbp-PAD]
                         sub     r15,8
                         mov     [r15],rax
+                        NEXT
+
+                        ; converts error code to 0
+                        DEFASM  "?ERR0",ERR2ZERO,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        jge     .good
+                        xor     rax,rax
+.good                   mov     [r15],rax
                         NEXT
 
                         ; read bytes from a system file
@@ -550,13 +545,17 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; read entire PAD
                         DEFCOL  "PADREAD",PADREAD,IMMEDIATE
-                        dq      PUSHFILE    ; @PFILE
+                        dq      TOFILE      ; >FILE
+                        dq      FETCH       ; @
                         dq      PUSHPAD     ; PAD
                         dq      LIT,256     ; 256
                         dq      SYSREAD     ; SYSREAD
-                        dq      POPFILL     ; !PFILL
+                        dq      ERR2ZERO    ; ?ERR0
+                        dq      TOMAX       ; >MAX
+                        dq      STORE       ; !
                         dq      LIT,0       ; 0
-                        dq      POPPOS      ; !PPOS
+                        dq      TOIN        ; >IN
+                        dq      STORE       ; !
                         dq      EXIT
 
                         section .rodata
