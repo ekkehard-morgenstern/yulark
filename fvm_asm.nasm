@@ -552,6 +552,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dq      LIT,256
                         dq      SYSREAD
                         dq      POPFILL
+                        dq      LIT,0
+                        dq      POPPOS
                         dq      EXIT
 
                         section .rodata
