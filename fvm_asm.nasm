@@ -107,6 +107,9 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         mov     [rbp-PFILL],rax
                         mov     [rbp-PPOS],rax
 
+                        ; set up PFILE
+                        mov     [rbp-PFILE],rax     ; 0 = STDIN
+
                         ; go to NEXT
                         NEXT
 
