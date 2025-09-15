@@ -538,9 +538,9 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; read bytes from a system file
                         DEFASM  "SYSREAD",SYSREAD,0
-                        mov     rdx,[r15+16]
-                        mov     rsi,[r15+8]
-                        mov     rdi,[r15]
+                        mov     rsi,[r15+16]    ; file handle
+                        mov     rdi,[r15+8]     ; buffer
+                        mov     rdx,[r15]       ; count
                         add     r15,16
 %define __NR_read       0
                         mov     rax,__NR_read
@@ -550,13 +550,13 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; read entire PAD
                         DEFCOL  "PADREAD",PADREAD,IMMEDIATE
-                        dq      PUSHFILE
-                        dq      PUSHPAD
-                        dq      LIT,256
-                        dq      SYSREAD
-                        dq      POPFILL
-                        dq      LIT,0
-                        dq      POPPOS
+                        dq      PUSHFILE    ; @PFILE
+                        dq      PUSHPAD     ; PAD
+                        dq      LIT,256     ; 256
+                        dq      SYSREAD     ; SYSREAD
+                        dq      POPFILL     ; !PFILL
+                        dq      LIT,0       ; 0
+                        dq      POPPOS      ; !PPOS
                         dq      EXIT
 
                         section .rodata
