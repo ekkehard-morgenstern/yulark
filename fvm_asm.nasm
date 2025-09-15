@@ -183,40 +183,183 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; basic computations
 
                         DEFASM  "+",ADDINT,0
-                        mov     rax,[r15]
-                        add     rax,[r15+8]
+                        mov     rax,[r15+8]
+                        add     rax,[r15]
                         add     r15,8
                         mov     [r15],rax
                         NEXT
 
                         DEFASM  "-",SUBINT,0
-                        mov     rax,[r15]
-                        sub     rax,[r15+8]
+                        mov     rax,[r15+8]
+                        sub     rax,[r15]
                         add     r15,8
                         mov     [r15],rax
                         NEXT
 
                         DEFASM  "*",MULINT,0
-                        mov     rax,[r15]
-                        imul    qword [r15+8]
+                        mov     rax,[r15+8]
+                        imul    qword [r15]
                         add     r15,8
                         mov     [r15],rax
                         NEXT
 
                         DEFASM  "/",DIVINT,0
-                        mov     rax,[r15]
+                        mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
-                        idiv    qword [r15+8]
+                        idiv    qword [r15]
                         add     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        DEFASM  "MOD",MODINT,0
-                        mov     rax,[r15]
+                        DEFASM  "*/",MULDIVINT,0
+                        mov     rax,[r15+16]
+                        imul    qword [r15+8]
+                        idiv    qword [r15]
+                        add     r15,16
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "/MOD",DIVMODINT,0
+                        mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
-                        idiv    qword [r15+8]
+                        idiv    qword [r15]
+                        mov     [r15+8],rax
+                        mov     [r15],rdx
+                        NEXT
+
+                        DEFASM  "MOD",MODINT,0
+                        mov     rax,[r15+8]
+                        cqo                     ; sign-extend into rdx
+                        idiv    qword [r15]
                         add     r15,8
                         mov     [r15],rdx
+                        NEXT
+
+                        DEFASM  "<0",LTZEROINT,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        setl    al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "<=0",LEZEROINT,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        setle   al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  ">0",GTZEROINT,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        setg    al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  ">=0",GEZEROINT,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        setge   al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "=0",EQZEROINT,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        sete    al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "<>0",NEZEROINT,0
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        setne   al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "<",LTINT,0
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setl    al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "<=",LEINT,0
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setle   al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  ">",GTINT,0
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setg    al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  ">=",GEINT,0
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setge   al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "=",EQINT,0
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        sete    al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "<>",NEINT,0
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setne   al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "@",FETCH,0
+                        mov     rax,[r15]
+                        mov     rax,[rax]
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "!",STORE,0
+                        mov     rdx,[r15+8]
+                        mov     rax,[r15]
+                        mov     [rax],rdx
+                        add     r15,16
+                        NEXT
+
+                        DEFASM  "CELL",CELL,0
+                        mov     rax,8   ; return size of memory cell
+                        sub     r15,rax
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "CELLS",CELLS,0
+                        mov     rax,[r15]   ; compute size of n cells
+                        shl     rax,3
+                        mov     [r15],rax
                         NEXT
 
                         DEFASM  "FPUINIT",FPUINIT,0
@@ -235,40 +378,40 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "F+",ADDFLT,0
-                        fld     qword [r15+8]
-                        fld     qword [r15]
+                        fld     qword [r15+8]   ; st1
+                        fld     qword [r15]     ; st0
                         faddp
                         add     r15,8
                         fstp    qword [r15]
                         NEXT
 
                         DEFASM  "F-",SUBFLT,0
-                        fld     qword [r15+8]
-                        fld     qword [r15]
+                        fld     qword [r15+8]   ; st1
+                        fld     qword [r15]     ; st0
                         fsubp
                         add     r15,8
                         fstp    qword [r15]
                         NEXT
 
                         DEFASM  "F*",MULFLT,0
-                        fld     qword [r15+8]
-                        fld     qword [r15]
+                        fld     qword [r15+8]   ; st1
+                        fld     qword [r15]     ; st0
                         fmulp
                         add     r15,8
                         fstp    qword [r15]
                         NEXT
 
                         DEFASM  "F/",DIVFLT,0
-                        fld     qword [r15+8]
-                        fld     qword [r15]
+                        fld     qword [r15+8]   ; st1
+                        fld     qword [r15]     ; st0
                         fdivp
                         add     r15,8
                         fstp    qword [r15]
                         NEXT
 
                         DEFASM  "FMOD",MODFLT,0
-                        fld     qword [r15]
-                        fld     qword [r15+8]
+                        fld     qword [r15]     ; st1
+                        fld     qword [r15+8]   ; st0
                         xor     rax,rax
                         push    rax
 .repeat                 fprem1              ; compute partial remainder
@@ -282,6 +425,28 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ffree   st0
                         fincstp
                         NEXT
+
+                        DEFASM  "FCOMP",COMPFLT,0
+                        fld     qword [r15+8]   ; st0
+                        fcomp   qword [r15]     ; cmp st0,src
+                        xor     rax,rax
+                        push    rax
+                        fstcw   word [rsp]      ; get FPU status word
+                        pop     rax
+                        and     ax,0x4500
+                        jz      .grt
+                        cmp     ax,0x0100
+                        je      .lwr
+                        cmp     ax,0x4000
+                        je      .eql
+                        mov     rax,-2          ; indicate error
+                        jmp     .end
+.grt                    mov     rax,1           ; greater
+                        jmp     .end
+.lwr                    mov     rax,-1          ; lower
+                        jmp     .end
+.eql                    mov     rax,0           ; equal
+.end                    NEXT
 
                         section .rodata
 
