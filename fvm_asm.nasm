@@ -146,34 +146,26 @@ fvm_term                pop     rbx
                         leave
                         ret
 
-fvm_stkovf              mov     rsi,2   ; STDERR
-                        lea     rdi,.ovftext
-%define OVFTEXT         "? stack overflow"
-                        %strlen cnt OVFTEXT
-                        mov     rdx,cnt+1
 %define __NR_write      1
-                        mov     rax,__NR_write
-                        syscall
-                        jmp     fvm_term
 
-                        section .rodata
-.ovftext                db      OVFTEXT,10
-
-                        section .text
-
-fvm_stkunf              mov     rsi,2   ; STDERR
-                        lea     rdi,.unftext
-%define UNFTEXT         "? stack underflow"
-                        %strlen cnt UNFTEXT
+                        %macro  ERREND 1
+                        mov     rsi,2   ; STDERR
+                        lea     rdi,%%errtext
+%define ERRTEXT         %1
+                        %strlen cnt ERRTEXT
                         mov     rdx,cnt+1
                         mov     rax,__NR_write
                         syscall
                         jmp     fvm_term
-
                         section .rodata
-.unftext                db      UNFTEXT,10
-
+%%errtext               db      ERRTEXT,10
                         section .text
+                        %endmacro
+
+fvm_stkovf              ERREND  "? stack overflow"
+fvm_stkunf              ERREND  "? stack underflow"
+fvm_divzro              ERREND  "? division by zero"
+fvm_nofpu               ERREND  "? FPU not found"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -310,8 +302,17 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        %macro  CHKZRO 0
+                        xor     rax,rax
+                        cmp     qword [r15],rax ; test for zero
+                        jne     %%okay
+                        jmp     fvm_divzro
+%%okay:
+                        %endmacro
+
                         DEFASM  "/",DIVINT,0
                         CHKUNF  2
+                        CHKZRO
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
@@ -321,6 +322,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         DEFASM  "*/",MULDIVINT,0
                         CHKUNF  3
+                        CHKZRO
                         mov     rax,[r15+16]
                         imul    qword [r15+8]
                         idiv    qword [r15]
@@ -330,6 +332,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         DEFASM  "/MOD",DIVMODINT,0
                         CHKUNF  2
+                        CHKZRO
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
@@ -339,6 +342,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         DEFASM  "MOD",MODINT,0
                         CHKUNF  2
+                        CHKZRO
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
@@ -544,7 +548,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         DEFASM  "FPUINIT",FPUINIT,0
-                        finit
+                        push    rbx
+                        mov     rax,1
+                        cpuid
+                        pop     rbx
+                        and     rdx,1
+                        jnz     .okay
+                        jmp     fvm_nofpu
+.okay                   finit
                         NEXT
 
                         DEFASM  "I2F",I2F,0
