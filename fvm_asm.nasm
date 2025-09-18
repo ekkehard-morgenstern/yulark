@@ -822,6 +822,63 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dq      DROP        ; DROP
                         dq      EXIT
 
+                        ; adjust word pointer
+                        ; -------------------
+                        ; The offset must be encoded in the colon definition
+                        ; right after the SKIP instruction.
+                        ; If offset is 0, no word is skipped, if it's 1, one
+                        ; word is skipped, and so on. If offset is -1, an
+                        ; endless loop occurs in the SKIP instruction if it is
+                        ; called from a colon definition. If it's -2, the
+                        ; instruction before the SKIP gets executed (if there
+                        ; is one). And so on.
+                        ; This instruction is used by the compiler to compile
+                        ; IF ... THEN statements etc. It should not be called
+                        ; by user code.
+                        DEFASM  "SKIP",SKIP,0   ; ( -- )
+                        mov     rax,[r13]
+                        add     r13,8
+                        lea     r13,[r13+rax*8]
+                        NEXT
+
+                        ; same as SKIP but jumps only if the value on the stack
+                        ; is true (i.e. nonzero).
+                        DEFASM  "?SKIP",CONDSKIP,0  ; ( bool -- )
+                        CHKUNF  1
+                        mov     rax,[r13]
+                        add     r13,8
+                        mov     rdx,[r15]
+                        add     r15,8
+                        test    rdx,rdx
+                        jz      .noskip
+                        lea     r13,[r13+rax*8]
+.noskip                 NEXT
+
+                        ; reads an unsigned char from specified address
+                        ; and places it as a word on the stack
+                        DEFASM  "C@",CHARFETCH,0    ; ( addr -- char )
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        mov     al,[rax]
+                        movzx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        ; stores a character at the specified address
+                        DEFASM  "C!",CHARSTORE,0    ; ( char addr -- )
+                        CHKUNF  2
+                        mov     rdx,[r15+8]
+                        mov     rax,[r15]
+                        add     r15,16
+                        mov     [rax],dl
+                        NEXT
+
+                        ; read a word from input
+                        ; DEFCOL  "WORD",READWORD,0
+                        ; ... TBD ...
+
+
+
                         section .rodata
 
                         align   8
