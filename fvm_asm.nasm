@@ -464,6 +464,61 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        DEFASM  "NEG",NEGATE,0
+                        CHKUNF  1
+                        neg     qword [r15]
+                        NEXT
+
+                        DEFASM  "NOT",BINNOT,0
+                        CHKUNF  1
+                        not     qword [r15]
+                        NEXT
+
+                        DEFASM  "AND",BINAND,0
+                        CHKUNF  2
+                        mov     rax,[r15]
+                        add     r15,8
+                        and     [r15],rax
+                        NEXT
+
+                        DEFASM  "OR",BINOR,0
+                        CHKUNF  2
+                        mov     rax,[r15]
+                        add     r15,8
+                        or      [r15],rax
+                        NEXT
+
+                        DEFASM  "XOR",BINXOR,0
+                        CHKUNF  2
+                        mov     rax,[r15]
+                        add     r15,8
+                        xor     [r15],rax
+                        NEXT
+
+                        DEFASM  "NAND",BINNAND,0
+                        CHKUNF  2
+                        mov     rax,[r15]
+                        add     r15,8
+                        and     [r15],rax
+                        not     qword [r15]
+                        NEXT
+
+                        DEFASM  "NOR",BINNOR,0
+                        CHKUNF  2
+                        mov     rax,[r15]
+                        add     r15,8
+                        or      [r15],rax
+                        not     qword [r15]
+                        NEXT
+
+                        DEFASM  "XNOR",BINXNOR,0
+                        CHKUNF  2
+                        mov     rax,[r15]
+                        add     r15,8
+                        xor     [r15],rax
+                        not     qword [r15]
+                        NEXT
+
                         DEFASM  "@",FETCH,0
                         CHKUNF  1
                         mov     rax,[r15]
