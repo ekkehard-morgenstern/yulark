@@ -71,7 +71,11 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
+                        ; rbp-0x120     beginning of 32 bytes of NAME space
+%define NAME            0x120
 
+                        ; ebp-0x1c8     NAME position
+%define NPOS            0x1c8
                         ; ebp-0x1d0     STKLWR bound
 %define STKLWR          0x1d0
                         ; ebp-0x1d8     STKUPR bound
@@ -728,6 +732,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; to-name returns the address of the NAME offset
+                        DEFASM  ">NAME",TONAME,0
+                        CHKOVF  1
+                        lea     rax,[rbp-NPOS]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; returns the address of the number of chars in the PAD
                         DEFASM  ">MAX",TOMAX,0
                         CHKOVF  1
@@ -756,6 +768,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         DEFASM  "PAD",PUSHPAD,0
                         CHKOVF  1
                         lea     rax,[rbp-PAD]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; returns the address of the NAME buffer
+                        DEFASM  "NAME",PUSHNAME,0
+                        CHKOVF  1
+                        lea     rax,[rbp-NAME]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
@@ -875,6 +895,9 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; read a word from input
                         DEFCOL  "WORD",READWORD,0
+                        ; clear name position
+                        dd      LIT,0           ;   0
+                        dd      TONAME,STORE    ;   >NAME !
                         ; check if input position is beyond maximum
                         dd      TOIN,FETCH      ;   >IN @
                         dd      TOMAX,FETCH     ;   >MAX @
@@ -895,7 +918,22 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dd      PUSHPAD         ;   PAD
                         dd      TOIN,FETCH      ;   >IN @
                         dd      ADDINT          ;   +
-                        dd      CHARFETCH       ;   @C
+                        dd      CHARFETCH       ;   C@
+                        ; ( char )
+                        ; increment name position (leave a copy of it)
+                        dd      TONAME,FETCH    ;   >NAME @
+                        dd      ADDONE,DUP      ;   +1 DUP
+                        dd      TONAME,STORE    ;   >NAME !
+                        ; ( char count )
+                        ; store the count into the first byte of NAME
+                        dd      DUP,PUSHNAME    ;   DUP NAME C!
+                        dd      CHARSTORE
+                        ; ( char count )
+                        ; store the character into the new position
+                        dd      PUSHNAME,ADDINT ;   NAME +
+                        dd      CHARSTORE       ;   C!
+                        ; ( )
+
                         ; ... to be continued ...
                         dd      EXIT
 
