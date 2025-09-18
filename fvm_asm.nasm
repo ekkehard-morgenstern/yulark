@@ -861,6 +861,12 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         lea     r13,[r13+rax*8]
                         NEXT
 
+                        ; jump to specific word address encoded in the word
+                        ; following the jump instruction.
+                        DEFASM  "JUMP",JUMP,0
+                        mov     r13,[r13]
+                        NEXT
+
                         ; same as SKIP but jumps only if the value on the stack
                         ; is true (i.e. nonzero).
                         DEFASM  "?SKIP",CONDSKIP,0  ; ( bool -- )
@@ -873,6 +879,17 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         jz      .noskip
                         lea     r13,[r13+rax*8]
 .noskip                 NEXT
+
+                        ; same as JUMP but jumps only if the value on the stack
+                        ; is true (i.e. nonzero)
+                        DEFASM  "?JUMP",CONDJUMP,0  ; ( bool -- )
+                        CHKUNF  1
+                        mov     rdx,[r15]
+                        add     r15,8
+                        test    rdx,rdx
+                        jz      .nojump
+                        mov     r13,[r13]
+.nojump                 NEXT
 
                         ; reads an unsigned char from specified address
                         ; and places it as a word on the stack
@@ -899,7 +916,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dd      LIT,0           ;   0
                         dd      TONAME,STORE    ;   >NAME !
                         ; check if input position is beyond maximum
-                        dd      TOIN,FETCH      ;   >IN @
+.nextchar               dd      TOIN,FETCH      ;   >IN @
                         dd      TOMAX,FETCH     ;   >MAX @
                         dd      LTINT           ;   <
                         ; if not, skip the following block (until PUSHPAD)
@@ -920,6 +937,33 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dd      ADDINT          ;   +
                         dd      CHARFETCH       ;   C@
                         ; ( char )
+                        ; compare it to one of the terminator characters
+                        ; (SPC, TAB, NEWLINE, NUL)
+                        dd      DUP,LIT,32      ;   DUP 32 (=SPC)
+                        dd      NEINT           ;   <>
+                        dd      CONDSKIP,3      ;   yes, skip ->
+                        ; end
+.dropfinish             dd      DROP            ;   DROP (char)
+.finish                 dd      PUSHNAME        ;   leave NAME address
+                        dd      EXIT
+                        ; compare to TAB
+                        dd      DUP,LIT,9       ;   DUP 9 (=HT)
+                        dd      EQINT           ;   =
+                        dd      CONDJUMP,.dropfinish    ; ?JUMP[.dropfinish]
+                        ; compare to NL
+                        dd      DUP,LIT,10      ;   DUP 10 (=NL)
+                        dd      EQINT           ;   =
+                        dd      CONDJUMP,.dropfinish    ; ?JUMP[.dropfinish]
+                        ; compare to NUL
+                        dd      DUP,LIT,0       ;   DUP 0 (=NUL)
+                        dd      EQINT           ;   =
+                        dd      CONDJUMP,.dropfinish    ; ?JUMP[.dropfinish]
+                        ; ( char )
+                        ; advance input position by 1
+                        dd      TOIN,FETCH      ;   >IN @
+                        dd      ADDONE          ;   +1
+                        dd      TOIN,STORE      ;   >IN !
+                        ; ( char )
                         ; increment name position (leave a copy of it)
                         dd      TONAME,FETCH    ;   >NAME @
                         dd      ADDONE,DUP      ;   +1 DUP
@@ -933,9 +977,17 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dd      PUSHNAME,ADDINT ;   NAME +
                         dd      CHARSTORE       ;   C!
                         ; ( )
-
-                        ; ... to be continued ...
-                        dd      EXIT
+                        ; read the count back
+                        dd      PUSHNAME,CHARFETCH ;    NAME C@
+                        ; ( count )
+                        ; compare it to 31
+                        ; if not reached, jump back to beginning
+                        ; (i.e. check input position)
+                        dd      LIT,31          ;   31
+                        dd      LTINT           ;   <
+                        dd      CONDJUMP,.nextchar  ; ?JUMP[.nextchar]
+                        ; done
+                        dd      JUMP,.finish    ;   JUMP[.finish]
 
                         section .rodata
 
