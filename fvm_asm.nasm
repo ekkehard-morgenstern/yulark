@@ -827,9 +827,9 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; The offset must be encoded in the colon definition
                         ; right after the SKIP instruction.
                         ; If offset is 0, no word is skipped, if it's 1, one
-                        ; word is skipped, and so on. If offset is -1, an
+                        ; word is skipped, and so on. If offset is -2, an
                         ; endless loop occurs in the SKIP instruction if it is
-                        ; called from a colon definition. If it's -2, the
+                        ; called from a colon definition. If it's -3, the
                         ; instruction before the SKIP gets executed (if there
                         ; is one). And so on.
                         ; This instruction is used by the compiler to compile
@@ -874,10 +874,30 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
                         ; read a word from input
-                        ; DEFCOL  "WORD",READWORD,0
-                        ; ... TBD ...
-
-
+                        DEFCOL  "WORD",READWORD,0
+                        ; check if input position is beyond maximum
+                        dd      TOIN,FETCH      ;   >IN @
+                        dd      TOMAX,FETCH     ;   >MAX @
+                        dd      LTINT           ;   <
+                        ; if not, skip the following block (until PUSHPAD)
+                        dd      CONDSKIP,9      ;   ?SKIP[+9]
+                        ; read a new block
+                        dd      PADREAD         ;   PADREAD
+                        ; check if the block size is zero
+                        dd      TOMAX,FETCH     ;   >MAX @
+                        dd      NEZEROINT       ;   <>0
+                        ; if not, skip the following block
+                        dd      CONDSKIP,3      ;   ?SKIP[+3]
+                        ; otherwise, push a zero and exit
+                        dd      LIT,0           ;   0
+                        dd      EXIT            ;   EXIT
+                        ; fetch character from PAD, position indicated by >IN @
+                        dd      PUSHPAD         ;   PAD
+                        dd      TOIN,FETCH      ;   >IN @
+                        dd      ADDINT          ;   +
+                        dd      CHARFETCH       ;   @C
+                        ; ... to be continued ...
+                        dd      EXIT
 
                         section .rodata
 
