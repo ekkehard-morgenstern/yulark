@@ -74,6 +74,8 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
+                        ; ebp-0x1c8     BASE
+%define BASE            0x1c8
                         ; ebp-0x1d0     STKLWR bound
 %define STKLWR          0x1d0
                         ; ebp-0x1d8     STKUPR bound
@@ -133,6 +135,10 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         inc     rax
                         mov     [rbp-OFILE],rax     ; 1 = STDOUT
 
+                        ; set up BASE
+                        mov     rax,10
+                        mov     [rbp-BASE],rax
+
                         ; go to NEXT
                         NEXT
 
@@ -168,6 +174,7 @@ fvm_stkovf              ERREND  "? stack overflow"
 fvm_stkunf              ERREND  "? stack underflow"
 fvm_divzro              ERREND  "? division by zero"
 fvm_nofpu               ERREND  "? FPU not found"
+fvm_badbase             ERREND  "? bad number base"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -754,6 +761,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; returns the address of the BASE variable
+                        DEFASM  "BASE",PUSHBASE,0
+                        CHKOVF  1
+                        lea     rax,[rbp-BASE]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; returns the address of the PAD buffer
                         DEFASM  "PAD",PUSHPAD,0
                         CHKOVF  1
@@ -1070,8 +1085,115 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( defptr )
 .done                   dd      EXIT
 
-
-
+                        ; convert number in NAME using BASE
+                        ; ( -- number bool )
+                        DEFASM  "?MATCHNUM",MATCHNUM,0
+                        CHKOVF  2
+                        mov     rax,[rbp-BASE]
+                        cmp     rax,2
+                        jl      .badbase
+                        cmp     rax,36
+                        jle     .baseok1
+.badbase                jmp     fvm_badbase
+.baseok1                jmp     .baseok2
+.zerolen                sub     r15,16
+                        xor     rax,rax
+                        mov     [r15+8],rax ; number = 0
+                        mov     [r15],rax   ; bool = false
+                        NEXT
+                        ; subroutine to get the next char
+.nextchar               jrcxz   .nochar
+                        lodsb
+                        dec     rcx
+                        movzx   rax,al
+                        ret
+.nochar                 xor     rax,rax
+                        not     rax
+                        ret
+                        ; subroutine to get the next digit
+.nextdigit              call    .nextchar
+                        cmp     rax,-1
+                        je      .enddigit
+                        cmp     al,'0'
+                        jb      .nodigit
+                        cmp     al,'9'
+                        ja      .beyondnine
+                        sub     al,'0'
+                        jmp     .enddigit
+.beyondnine             cmp     al,'A'
+                        jb      .nodigit
+                        cmp     al,'Z'
+                        ja      .beyondZ
+                        sub     al,'A'
+                        add     al,10
+                        jmp     .enddigit
+.beyondZ                cmp     al,'a'
+                        jb      .nodigit
+                        cmp     al,'z'
+                        ja      .nodigit
+                        sub     al,'a'
+                        add     al,10
+.enddigit               cmp     rax,[rbp-BASE]
+                        jae     .nodigit
+                        jmp     .enddigit2
+.nodigit                mov     rax,-1
+.enddigit2              ret
+                        ; subroutine to back up one character
+.backuponechar          dec     rsi
+                        inc     rcx
+                        ret
+                        ; get name length
+.baseok2                lea     rsi,[rbp-NAME]
+                        cld
+                        lodsb
+                        ; set counter, stop if zero
+                        mov     cl,al
+                        movzx   rcx,cl
+                        jrcxz   .zerolen2
+                        jmp     .nonzerolen
+.zerolen2               jmp     .zerolen
+                        ; scan for '.' character
+.nonzerolen             mov     rdi,rsi
+                        mov     al,'.'
+                        mov     rdx,rcx
+                        repne   scasb
+                        jne     .notfloat
+                        ; floating-point conversion
+                        ; not implemented at this time
+                        jmp     .zerolen
+                        ; integer conversion
+                        ; read first character to see if it's a sign
+.notfloat               mov     rcx,rdx
+                        mov     r8,1
+                        call    .nextchar
+                        cmp     rax,-1
+                        je      .zerolen2
+                        cmp     al,'-'
+                        je      .negative
+                        cmp     al,'+'
+                        je      .readint
+                        call    .backuponechar
+                        jmp     .readint
+.negative               neg     r8
+                        jmp     .readint
+.readint                call    .nextdigit
+                        cmp     rax,-1
+                        je      .zerolen2
+                        mov     r9,rax
+.readint2               call    .nextdigit
+                        cmp     rax,-1
+                        je      .readintend
+                        xchg    r9,rax
+                        mul     qword [rbp-BASE]
+                        add     r9,rax
+                        jmp     .readint
+.readintend             mov     rax,r9
+                        imul    r8
+                        sub     r15,16
+                        mov     [r15+8],rax ; number = result
+                        mov     rax,-1
+                        mov     [r15],rax   ; bool = true
+                        NEXT
 
                         section .rodata
 
