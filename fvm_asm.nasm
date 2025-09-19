@@ -977,7 +977,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( char )
                         dd      EXIT
 
-                        ; read a word from input
+                        ; read a word from input into NAME buffer ( -- )
                         DEFCOL  "WORD",READWORD,0
                         ; clear name length
                         dd      LIT,0           ;   0
@@ -1019,6 +1019,59 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; done
                         dd      PUSHNAME        ;   leave NAME address
                         dd      EXIT
+
+                        ; check if a definition matches the current NAME
+                        ; ( defptr -- bool )
+                        DEFASM  "?MATCHDEF",MATCHDEF,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        lea     rsi,[rax+8]     ; beginning of name field in def
+                        lea     rdi,[rbp-NAME]  ; NAME buffer
+                        cld
+                        ; load length from definition
+                        lodsb   ; al = [rsi]+
+                        and     al,0x1f ; length is low 5 bits
+                        ; compare with length in NAME field
+                        cmp     al,[rdi]
+                        jne     .false
+                        inc     rdi
+                        ; same length: compare strings
+                        movzx   rcx,al
+                        jrcxz   .true
+                        repe    cmpsb
+                        jne     .false
+.true                   xor     rax,rax
+                        not     rax
+                        mov     [r15],rax
+                        NEXT
+.false                  xor     rax,rax
+                        mov     [r15],rax
+                        NEXT
+
+                        ; find word in NAME buffer in dictionary
+                        ; ( -- addr )
+                        ; if not found, returns a NULL pointer
+                        DEFCOL  "FIND",FINDWORD,0
+                        ; get LATEST variable onto the stack
+                        dd      TOLATEST,FETCH  ;   >LATEST @
+                        ; ( defptr )
+                        ; see if the current definition matches the
+                        ; word in NAME.
+.next                   dd      DUP,MATCHDEF    ;   DUP ?MATCHDEF
+                        dd      CONDJUMP,.done  ;   ?JUMP[.done]
+                        ; doesn't match: move to previous definition
+                        dd      FETCH           ;   @
+                        ; ( defptr )
+                        ; check if entries are used up
+                        dd      DUP,EQZEROINT   ;   DUP =0
+                        dd      CONDJUMP,.done  ;   ?JUMP[.done]
+                        ; nope, compare ->
+                        dd      JUMP,.next      ;   JUMP[.next]
+                        ; ( defptr )
+.done                   dd      EXIT
+
+
+
 
                         section .rodata
 
