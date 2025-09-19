@@ -74,8 +74,6 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
-                        ; ebp-0x1c8     NAME position
-%define NPOS            0x1c8
                         ; ebp-0x1d0     STKLWR bound
 %define STKLWR          0x1d0
                         ; ebp-0x1d8     STKUPR bound
@@ -732,14 +730,6 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
-                        ; to-name returns the address of the NAME offset
-                        DEFASM  ">NAME",TONAME,0
-                        CHKOVF  1
-                        lea     rax,[rbp-NPOS]
-                        sub     r15,8
-                        mov     [r15],rax
-                        NEXT
-
                         ; returns the address of the number of chars in the PAD
                         DEFASM  ">MAX",TOMAX,0
                         CHKOVF  1
@@ -910,17 +900,64 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [rax],dl
                         NEXT
 
-                        ; read a word from input
-                        DEFCOL  "WORD",READWORD,0
-                        ; clear name position
-                        dd      LIT,0           ;   0
-                        dd      TONAME,STORE    ;   >NAME !
+                        DEFASM  "INCR",INCR,0       ; ( addr -- )
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        inc     qword [r15]
+                        add     r15,8
+                        NEXT
+
+                        DEFASM  "CINCR",CINCR,0     ; ( addr -- )
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        inc     byte [r15]
+                        add     r15,8
+                        NEXT
+
+                        DEFASM  "DECR",DECR,0       ; ( addr -- )
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        dec     qword [r15]
+                        add     r15,8
+                        NEXT
+
+                        DEFASM  "CDECR",CDECR,0     ; ( addr -- )
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        dec     byte [r15]
+                        add     r15,8
+                        NEXT
+
+                        DEFASM  "?SPC",ISSPC,0      ; ( char -- bool )
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        cmp     al,0x20 ; SPC
+                        je      .isspc
+                        cmp     al,0x09 ; HT
+                        je      .isspc
+                        cmp     al,0x0a ; LF
+                        je      .isspc
+                        cmp     al,0x0d ; CR
+                        je      .isspc
+                        cmp     al,0x00 ; NUL
+                        je      .isspc
+                        ; not space
+                        xor     al,al
+                        jmp     .end
+.isspc                  xor     al,al
+                        not     al
+.end                    movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        ; read a character from the PAD input
+                        DEFCOL  "PADGETCH",PADGETCH,0
                         ; check if input position is beyond maximum
 .nextchar               dd      TOIN,FETCH      ;   >IN @
                         dd      TOMAX,FETCH     ;   >MAX @
                         dd      LTINT           ;   <
-                        ; if not, skip the following block (until PUSHPAD)
-                        dd      CONDSKIP,9      ;   ?SKIP[+9]
+                        ; if not, jump to continue
+                        dd      CONDJUMP,.cont  ;   ?JUMP[.cont]
                         ; read a new block
                         dd      PADREAD         ;   PADREAD
                         ; check if the block size is zero
@@ -928,50 +965,41 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dd      NEZEROINT       ;   <>0
                         ; if not, skip the following block
                         dd      CONDSKIP,3      ;   ?SKIP[+3]
-                        ; otherwise, push a zero and exit
-                        dd      LIT,0           ;   0
+                        ; otherwise, push a -1 and exit
+                        dd      LIT,-1          ;   -1
                         dd      EXIT            ;   EXIT
-                        ; fetch character from PAD, position indicated by >IN @
-                        dd      PUSHPAD         ;   PAD
-                        dd      TOIN,FETCH      ;   >IN @
-                        dd      ADDINT          ;   +
+                        ; fetch a character at the input position
+                        ; then advance input position
+.cont                   dd      TOIN,FETCH      ;   >IN @
+                        dd      PAD,ADDINT      ;   PAD +
                         dd      CHARFETCH       ;   C@
+                        dd      TOIN,INCR       ;   >IN INCR
+                        ; ( char )
+                        dd      EXIT
+
+                        ; read a word from input
+                        DEFCOL  "WORD",READWORD,0
+                        ; clear name length
+                        dd      LIT,0           ;   0
+                        dd      PUSHNAME        ;   NAME
+                        dd      CHARSTORE       ;   C@
+                        ; read a character from the PAD
+.nextchar               dd      PADGETCH,DUP    ;   PADGETCH DUP
+                        dd      LIT,-1,EQINT    ;   -1 =
+                        dd      CONDSKIP,5      ;   ?SKIP[+5]
                         ; ( char )
                         ; compare it to one of the terminator characters
                         ; (SPC, TAB, NEWLINE, NUL)
-                        dd      DUP,LIT,32      ;   DUP 32 (=SPC)
-                        dd      NEINT           ;   <>
-                        dd      CONDSKIP,3      ;   yes, skip ->
+                        dd      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
+                        dd      CONDSKIP,3      ;   ?SKIP[+3]
                         ; end
-.dropfinish             dd      DROP            ;   DROP (char)
-.finish                 dd      PUSHNAME        ;   leave NAME address
+                        dd      DROP            ;   DROP (char)
+                        dd      PUSHNAME        ;   leave NAME address
                         dd      EXIT
-                        ; compare to TAB
-                        dd      DUP,LIT,9       ;   DUP 9 (=HT)
-                        dd      EQINT           ;   =
-                        dd      CONDJUMP,.dropfinish    ; ?JUMP[.dropfinish]
-                        ; compare to NL
-                        dd      DUP,LIT,10      ;   DUP 10 (=NL)
-                        dd      EQINT           ;   =
-                        dd      CONDJUMP,.dropfinish    ; ?JUMP[.dropfinish]
-                        ; compare to NUL
-                        dd      DUP,LIT,0       ;   DUP 0 (=NUL)
-                        dd      EQINT           ;   =
-                        dd      CONDJUMP,.dropfinish    ; ?JUMP[.dropfinish]
                         ; ( char )
-                        ; advance input position by 1
-                        dd      TOIN,FETCH      ;   >IN @
-                        dd      ADDONE          ;   +1
-                        dd      TOIN,STORE      ;   >IN !
-                        ; ( char )
-                        ; increment name position (leave a copy of it)
-                        dd      TONAME,FETCH    ;   >NAME @
-                        dd      ADDONE,DUP      ;   +1 DUP
-                        dd      TONAME,STORE    ;   >NAME !
-                        ; ( char count )
-                        ; store the count into the first byte of NAME
-                        dd      DUP,PUSHNAME    ;   DUP NAME C!
-                        dd      CHARSTORE
+                        ; increment name length and leave a copy of it
+                        dd      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
+                        dd      CHARFETCH       ;   C@
                         ; ( char count )
                         ; store the character into the new position
                         dd      PUSHNAME,ADDINT ;   NAME +
@@ -987,7 +1015,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dd      LTINT           ;   <
                         dd      CONDJUMP,.nextchar  ; ?JUMP[.nextchar]
                         ; done
-                        dd      JUMP,.finish    ;   JUMP[.finish]
+                        dd      PUSHNAME        ;   leave NAME address
+                        dd      EXIT
 
                         section .rodata
 
