@@ -986,12 +986,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; read a character from the PAD
 .nextchar               dd      PADGETCH,DUP    ;   PADGETCH DUP
                         dd      LIT,-1,EQINT    ;   -1 =
-                        dd      CONDSKIP,5      ;   ?SKIP[+5]
+                        dd      CONDSKIP,7      ;   ?SKIP[+7]
                         ; ( char )
                         ; compare it to one of the terminator characters
                         ; (SPC, TAB, NEWLINE, NUL)
                         dd      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
-                        dd      CONDSKIP,3      ;   ?SKIP[+3]
+                        dd      CONDSKIP,5      ;   ?SKIP[+5]
+                        ; decrement character position for PAD
+                        dd      TOIN,DECR       ;   >IN DECR
                         ; end
                         dd      DROP            ;   DROP (char)
                         dd      PUSHNAME        ;   leave NAME address
