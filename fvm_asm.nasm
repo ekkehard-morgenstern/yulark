@@ -986,72 +986,72 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; read a character from the PAD input
                         DEFCOL  "PADGETCH",PADGETCH,0
                         ; check if input position is beyond maximum
-.nextchar               dd      TOIN,FETCH      ;   >IN @
-                        dd      TOMAX,FETCH     ;   >MAX @
-                        dd      LTINT           ;   <
+.nextchar               dq      TOIN,FETCH      ;   >IN @
+                        dq      TOMAX,FETCH     ;   >MAX @
+                        dq      LTINT           ;   <
                         ; if not, jump to continue
-                        dd      CONDJUMP,.cont  ;   ?JUMP[.cont]
+                        dq      CONDJUMP,.cont  ;   ?JUMP[.cont]
                         ; read a new block
-                        dd      PADREAD         ;   PADREAD
+                        dq      PADREAD         ;   PADREAD
                         ; check if the block size is zero
-                        dd      TOMAX,FETCH     ;   >MAX @
-                        dd      NEZEROINT       ;   <>0
+                        dq      TOMAX,FETCH     ;   >MAX @
+                        dq      NEZEROINT       ;   <>0
                         ; if not, skip the following block
-                        dd      CONDSKIP,3      ;   ?SKIP[+3]
+                        dq      CONDSKIP,3      ;   ?SKIP[+3]
                         ; otherwise, push a -1 and exit
-                        dd      LIT,-1          ;   -1
-                        dd      EXIT            ;   EXIT
+                        dq      LIT,-1          ;   -1
+                        dq      EXIT            ;   EXIT
                         ; fetch a character at the input position
                         ; then advance input position
-.cont                   dd      TOIN,FETCH      ;   >IN @
-                        dd      PAD,ADDINT      ;   PAD +
-                        dd      CHARFETCH       ;   C@
-                        dd      TOIN,INCR       ;   >IN INCR
+.cont                   dq      TOIN,FETCH      ;   >IN @
+                        dq      PAD,ADDINT      ;   PAD +
+                        dq      CHARFETCH       ;   C@
+                        dq      TOIN,INCR       ;   >IN INCR
                         ; ( char )
-                        dd      EXIT
+                        dq      EXIT
 
                         ; read a word from input into NAME buffer ( -- )
                         DEFCOL  "WORD",READWORD,0
                         ; clear name length
-                        dd      LIT,0           ;   0
-                        dd      PUSHNAME        ;   NAME
-                        dd      CHARSTORE       ;   C@
+                        dq      LIT,0           ;   0
+                        dq      PUSHNAME        ;   NAME
+                        dq      CHARSTORE       ;   C@
                         ; read a character from the PAD
-.nextchar               dd      PADGETCH,DUP    ;   PADGETCH DUP
-                        dd      LIT,-1,EQINT    ;   -1 =
-                        dd      CONDSKIP,7      ;   ?SKIP[+7]
+.nextchar               dq      PADGETCH,DUP    ;   PADGETCH DUP
+                        dq      LIT,-1,EQINT    ;   -1 =
+                        dq      CONDSKIP,7      ;   ?SKIP[+7]
                         ; ( char )
                         ; compare it to one of the terminator characters
                         ; (SPC, TAB, NEWLINE, NUL)
-                        dd      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
-                        dd      CONDSKIP,5      ;   ?SKIP[+5]
+                        dq      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
+                        dq      CONDSKIP,5      ;   ?SKIP[+5]
                         ; decrement character position for PAD
-                        dd      TOIN,DECR       ;   >IN DECR
+                        dq      TOIN,DECR       ;   >IN DECR
                         ; end
-                        dd      DROP            ;   DROP (char)
-                        dd      PUSHNAME        ;   leave NAME address
-                        dd      EXIT
+                        dq      DROP            ;   DROP (char)
+                        dq      PUSHNAME        ;   leave NAME address
+                        dq      EXIT
                         ; ( char )
                         ; increment name length and leave a copy of it
-                        dd      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
-                        dd      CHARFETCH       ;   C@
+                        dq      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
+                        dq      CHARFETCH       ;   C@
                         ; ( char count )
                         ; store the character into the new position
-                        dd      PUSHNAME,ADDINT ;   NAME +
-                        dd      CHARSTORE       ;   C!
+                        dq      PUSHNAME,ADDINT ;   NAME +
+                        dq      CHARSTORE       ;   C!
                         ; ( )
                         ; read the count back
-                        dd      PUSHNAME,CHARFETCH ;    NAME C@
+                        dq      PUSHNAME,CHARFETCH ;    NAME C@
                         ; ( count )
                         ; compare it to 31
                         ; if not reached, jump back to beginning
                         ; (i.e. check input position)
-                        dd      LIT,31          ;   31
-                        dd      LTINT           ;   <
-                        dd      CONDJUMP,.nextchar  ; ?JUMP[.nextchar]
+                        dq      LIT,31          ;   31
+                        dq      LTINT           ;   <
+                        dq      CONDJUMP,.nextchar  ; ?JUMP[.nextchar]
                         ; done
-                        dd      PUSHNAME        ;   leave NAME address
-                        dd      EXIT
+                        dq      PUSHNAME        ;   leave NAME address
+                        dq      EXIT
 
                         ; check if a definition matches the current NAME
                         ; ( defptr -- bool )
@@ -1086,22 +1086,22 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; if not found, returns a NULL pointer
                         DEFCOL  "FIND",FINDWORD,0
                         ; get LATEST variable onto the stack
-                        dd      TOLATEST,FETCH  ;   >LATEST @
+                        dq      TOLATEST,FETCH  ;   >LATEST @
                         ; ( defptr )
                         ; see if the current definition matches the
                         ; word in NAME.
-.next                   dd      DUP,MATCHDEF    ;   DUP ?MATCHDEF
-                        dd      CONDJUMP,.done  ;   ?JUMP[.done]
+.next                   dq      DUP,MATCHDEF    ;   DUP ?MATCHDEF
+                        dq      CONDJUMP,.done  ;   ?JUMP[.done]
                         ; doesn't match: move to previous definition
-                        dd      FETCH           ;   @
+                        dq      FETCH           ;   @
                         ; ( defptr )
                         ; check if entries are used up
-                        dd      DUP,EQZEROINT   ;   DUP =0
-                        dd      CONDJUMP,.done  ;   ?JUMP[.done]
+                        dq      DUP,EQZEROINT   ;   DUP =0
+                        dq      CONDJUMP,.done  ;   ?JUMP[.done]
                         ; nope, compare ->
-                        dd      JUMP,.next      ;   JUMP[.next]
+                        dq      JUMP,.next      ;   JUMP[.next]
                         ; ( defptr )
-.done                   dd      EXIT
+.done                   dq      EXIT
 
                         ; check BASE
                         DEFASM  "CHECKBASE",CHECKBASE,0
@@ -1118,35 +1118,35 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; initialize numeric conversion
                         ;   ( -- addr len )
                         DEFCOL  "INITNCONV",INITNCONV,0
-                        dd      CHECKBASE           ;   CHECKBASE
-                        dd      NAME,DUP,CHARFETCH  ;   NAME DUP C@
+                        dq      CHECKBASE           ;   CHECKBASE
+                        dq      NAME,DUP,CHARFETCH  ;   NAME DUP C@
                         ;   ( addr len )
-                        dd      SWAP,ADDONE,SWAP    ;   SWAP +1 SWAP
+                        dq      SWAP,ADDONE,SWAP    ;   SWAP +1 SWAP
                         ;   ( addr len )
-                        dd      EXIT
+                        dq      EXIT
 
                         ; get a character for numeric conversion
                         ;   ( addr len -- addr len char )
                         ; on error, the character will be -1
                         DEFCOL  "CGETNCONV",CGETNCONV,0
-                        dd      DUP,EQZEROINT       ;   DUP =0
-                        dd      CONDJUMP,.nochar    ;   ?JUMP[.nochar]
+                        dq      DUP,EQZEROINT       ;   DUP =0
+                        dq      CONDJUMP,.nochar    ;   ?JUMP[.nochar]
                         ;   ( addr len )
-                        dd      SWAP,DUP,CHARFETCH  ;   SWAP DUP C@
+                        dq      SWAP,DUP,CHARFETCH  ;   SWAP DUP C@
                         ;   ( len addr char )
-                        dd      ROT                 ;   ROT
+                        dq      ROT                 ;   ROT
                         ;   ( addr char len )
-                        dd      SUBONE              ;   -1
-                        dd      ROT                 ;   ROT
+                        dq      SUBONE              ;   -1
+                        dq      ROT                 ;   ROT
                         ;   ( char len addr )
-                        dd      ADDONE              ;   +1
-                        dd      SWAP                ;   SWAP
+                        dq      ADDONE              ;   +1
+                        dq      SWAP                ;   SWAP
                         ;   ( char addr len )
-                        dd      ROT
+                        dq      ROT
                         ;   ( addr len char )
-                        dd      EXIT
-.nochar                 dd      LIT,-1              ;   -1
-                        dd      EXIT
+                        dq      EXIT
+.nochar                 dq      LIT,-1              ;   -1
+                        dq      EXIT
 
                         ; convert a character to a digit using the
                         ; current number BASE
@@ -1190,20 +1190,20 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; if possible, go back one char
                         ; ( addr len )
                         DEFCOL  "BACKNCONV",BACKNCONV,0
-                        dd      SWAP,DUP            ;   SWAP DUP
+                        dq      SWAP,DUP            ;   SWAP DUP
                         ; ( len addr addr )
-                        dd      PUSHNAME,ADDONE     ;   NAME +1
+                        dq      PUSHNAME,ADDONE     ;   NAME +1
                         ; ( len addr addr name1 )
-                        dd      EQINT               ;   =
+                        dq      EQINT               ;   =
                         ; ( len addr bool )
-                        dd      CONDJUMP,.abort     ;   ?JUMP[.abort]
+                        dq      CONDJUMP,.abort     ;   ?JUMP[.abort]
                         ; all ok
                         ; decrement addr and increment length
-                        dd      SUBONE,SWAP,ADDONE  ;   -1 SWAP +1
+                        dq      SUBONE,SWAP,ADDONE  ;   -1 SWAP +1
                         ; ( addr len )
-                        dd      EXIT
+                        dq      EXIT
                         ; ( len addr )
-.abort                  dd      SWAP,EXIT           ;   SWAP
+.abort                  dq      SWAP,EXIT           ;   SWAP
 
                         ; rotate stack similar to ROT, but with a
                         ; specifiable length. 3 ROLL is same as ROT
@@ -1279,81 +1279,81 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; on error, both values will be zero
                         DEFCOL  "DSEQNCONV",DSEQNCONV,0
                         ; get first char
-                        dd      CGETNCONV       ;   CGETNCONV
+                        dq      CGETNCONV       ;   CGETNCONV
                         ; ( addr len char )
-                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
-                        dd      CONDJUMP,.badlead   ; ?JUMP[.badlead]
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.badlead   ; ?JUMP[.badlead]
                         ; convert to digit
-                        dd      DIGIT               ; DIGIT
+                        dq      DIGIT               ; DIGIT
                         ; ( addr len char digit )
-                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
-                        dd      CONDJUMP,.badlead2  ; ?JUMP[.badlead2]
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.badlead2  ; ?JUMP[.badlead2]
                         ; ok starts with a digit; this becomes the
                         ; value field
                         ; ( addr len char value )
                         ; get rid of the char
-                        dd      SWAP,DROP           ; SWAP DROP
+                        dq      SWAP,DROP           ; SWAP DROP
                         ; ( addr len value )
                         ; rotate stack to move value down
-                        dd      ROT
+                        dq      ROT
                         ; ( len value addr )
-                        dd      ROT
+                        dq      ROT
                         ; ( value addr len )
                         ; read next char
-.nextchar               dd      CGETNCONV       ;   CGETNCONV
+.nextchar               dq      CGETNCONV       ;   CGETNCONV
                         ; ( value addr len char )
-                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
-                        dd      CONDJUMP,.finish    ; ?JUMP[.finish]
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.finish    ; ?JUMP[.finish]
                         ; convert to digit
-                        dd      DIGIT               ; DIGIT
+                        dq      DIGIT               ; DIGIT
                         ; ( value addr len char digit )
-                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
-                        dd      CONDJUMP,.finish2   ; ?JUMP[.finish2]
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.finish2   ; ?JUMP[.finish2]
                         ; have a valid digit: drop char
-                        dd      SWAP,DROP           ; SWAP DROP
+                        dq      SWAP,DROP           ; SWAP DROP
                         ; ( value addr len digit )
-                        dd      LIT,4,ROLL          ; 4 ROLL
+                        dq      LIT,4,ROLL          ; 4 ROLL
                         ; ( addr len digit value )
-                        dd      PUSHBASE,FETCH      ; BASE @
+                        dq      PUSHBASE,FETCH      ; BASE @
                         ; ( addr len digit value base )
-                        dd      MULINT,ADDINT       ; * +
+                        dq      MULINT,ADDINT       ; * +
                         ; ( addr len newvalue )
-                        dd      ROT                 ; ROT
+                        dq      ROT                 ; ROT
                         ; ( len newvalue addr )
-                        dd      ROT                 ; ROT
+                        dq      ROT                 ; ROT
                         ; ( newvalue addr len )
-                        dd      JUMP,.nextchar      ; JUMP[.nextchar]
+                        dq      JUMP,.nextchar      ; JUMP[.nextchar]
                         ; not digit: back up one char
                         ; ( value addr len char digit )
-.finish2                dd      BACKNCONV           ; BACKNCONV
+.finish2                dq      BACKNCONV           ; BACKNCONV
                         ; get rid of digit and char
-                        dd      DROP,DROP           ; DROP DROP
+                        dq      DROP,DROP           ; DROP DROP
                         ; ( value addr len )
                         ; get value on top
-.finish                 dd      ROT                 ; ROT
+.finish                 dq      ROT                 ; ROT
                         ; ( addr len value )
                         ; get address on stack
-                        dd      LIT,3,PICK          ; 3 PICK
+                        dq      LIT,3,PICK          ; 3 PICK
                         ; ( addr len value addr )
                         ; compute number of digits
-                        dd      PUSHNAME,ADDONE     ; NAME +1
-                        dd      SUBINT              ; -
+                        dq      PUSHNAME,ADDONE     ; NAME +1
+                        dq      SUBINT              ; -
                         ; ( addr len value numdigits )
-                        dd      EXIT
+                        dq      EXIT
                         ; bad leading char:
                         ; ( addr len char digit )
-.badlead2               dd      DROP                ; DROP
+.badlead2               dq      DROP                ; DROP
                         ; ( addr len char )
-.badlead                dd      DROP                ; DROP
+.badlead                dq      DROP                ; DROP
                         ; ( addr len )
-                        dd      LIT,0,LIT,0         ; 0 0
-                        dd      EXIT
+                        dq      LIT,0,LIT,0         ; 0 0
+                        dq      EXIT
 
                         ; convert number in NAME using BASE
                         ; ( -- number bool )
                         DEFCOL  "?MATCHNUM",MATCHNUM,0
                         ; ... TBD ...
-                        dd      EXIT
+                        dq      EXIT
 
 
                         section .rodata
