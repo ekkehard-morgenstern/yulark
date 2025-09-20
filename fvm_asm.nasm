@@ -74,13 +74,15 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
-                        ; ebp-0x1c8     BASE
+                        ; rbp-0x1c0     floating-point mantissa (conversion)
+%define MANTISSA        0x1c0
+                        ; rbp-0x1c8     BASE
 %define BASE            0x1c8
-                        ; ebp-0x1d0     STKLWR bound
+                        ; rbp-0x1d0     STKLWR bound
 %define STKLWR          0x1d0
-                        ; ebp-0x1d8     STKUPR bound
+                        ; rbp-0x1d8     STKUPR bound
 %define STKUPR          0x1d8
-                        ; ebp-0x1e0     OFILE handle
+                        ; rbp-0x1e0     OFILE handle
 %define OFILE           0x1e0
                         ; rbp-0x1e8     PFILE handle for PAD buffer
 %define PFILE           0x1e8
@@ -1256,7 +1258,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 .notdot2                call    .backuponechar
                         call    .nextdigit
                         cmp     rax,-1
-                        je      .zerolen3
+                        je      .floatend
                         xchg    r9,rax      ; r9=digit, rax=result
                         mul     qword [rbp-BASE]    ; * BASE
                         add     r9,rax      ; r9 += result*BASE
@@ -1264,7 +1266,19 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         jz      .readfloat2
                         dec     r11         ; decrease exponent (BASE^x)
                         jmp     .readfloat2
-.floatend:
+                        ; add sign
+.floatend               mov     rax,r9      ; rax=result*r8 (r8=sign)
+                        imul    r8
+                        ; store mantissa for later
+                        mov     [rbp-MANTISSA],rax
+                        ; clear sign and value
+                        xor     r8,r8
+                        xor     r9,r9
+                        ; check if there is another character that indicates
+                        ; exponent notation. this will be either E e or '.
+
+
+
 
 
 
