@@ -618,6 +618,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         CHKUNF  1
                         mov     rax,[r15]
                         dec     rax
+                        CHKUNF  rax
                         mov     rax,[r15+rax*8]
                         mov     [r15],rax
                         NEXT
@@ -1186,24 +1187,160 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; if possible, go back one char
+                        ; ( addr len )
+                        DEFCOL  "BACKNCONV",BACKNCONV,0
+                        dd      SWAP,DUP            ;   SWAP DUP
+                        ; ( len addr addr )
+                        dd      PUSHNAME,ADDONE     ;   NAME +1
+                        ; ( len addr addr name1 )
+                        dd      EQINT               ;   =
+                        ; ( len addr bool )
+                        dd      CONDJUMP,.abort     ;   ?JUMP[.abort]
+                        ; all ok
+                        ; decrement addr and increment length
+                        dd      SUBONE,SWAP,ADDONE  ;   -1 SWAP +1
+                        ; ( addr len )
+                        dd      EXIT
+                        ; ( len addr )
+.abort                  dd      SWAP,EXIT           ;   SWAP
+
+                        ; rotate stack similar to ROT, but with a
+                        ; specifiable length. 3 ROLL is same as ROT
+                        ; a zero value of N or value of 1 does nothing.
+                        ; a negative value of N rotates in the opposite
+                        ; direction.
+                        ; ( n1 .. nN +N -- n2 .. nN n1   )  N > 0
+                        ; ( n1 .. nN -N -- nN n1 .. nN-1 )  N < 0
+                        DEFASM  "ROLL",ROLL,0
+                        CHKUNF  1
+                        mov     rcx,[r15]
+                        add     r15,8
+                        jrcxz   .noop
+                        cmp     rcx,0
+                        jl      .negative
+                        dec     rcx
+                        jrcxz   .noop
+                        CHKUNF  rcx
+                        ; example 3 ROLL (ROT) :
+                        ; [r15+16] [r15+8] [r15]
+                        ;    rsi
+                        ;    rdi
+                        lea     rsi,[r15+rcx*8]
+                        mov     rdi,rsi
+                        cld
+                        lodsq
+                        ; rax = [r15+16]
+                        ; [r15+16] [r15+8] [r15]
+                        ;            rsi
+                        ;    rdi
+                        rep     movsq
+                        ; with rcx = 2:
+                        ; [r15+16] [r15+8] [r15]
+                        ;                         rsi
+                        ; [r15+8] [r15] [r15]
+                        ;                rdi
+                        stosq
+                        ; [r15+8] [r15] [r15+16]
+                        ;                         rdi
+.noop                   NEXT
+                        ; count is negative, turn it to positive
+                        ; then subtract 1
+.negative               neg     rcx
+                        dec     rcx
+                        jrcxz   .noop
+                        CHKUNF  rcx
+                        ; example -3 ROLL :
+                        ; [r15+16] [r15+8] [r15]
+                        ;                   rsi
+                        ;                   rdi
+                        mov     rsi,r15
+                        mov     rdi,rsi
+                        std
+                        lodsq
+                        ; rax = [r15]
+                        ; [r15+16] [r15+8] [r15]
+                        ;            rsi
+                        ;                   rdi
+                        rep     movsq
+                        ;        [r15+16] [r15+8] [r15]
+                        ;  rsi
+                        ;        [r15+16] [r15+16] [r15+8]
+                        ;          rdi
+                        stosq
+                        ;        [r15] [r15+16] [r15+8]
+                        ;  rdi
+                        cld
+                        NEXT
+
                         ; convert a digit sequence to a number,
                         ; returning its value and number of digits
                         ; ( addr len -- addr len numdig value )
                         ; on error, both values will be zero
                         DEFCOL  "DSEQNCONV",DSEQNCONV,0
+                        ; get first char
                         dd      CGETNCONV       ;   CGETNCONV
                         ; ( addr len char )
                         dd      DUP,LIT,-1,EQINT    ; DUP -1 =
-                        dd      CONDJUMP,.badlead   ; JUMP[.badlead]
+                        dd      CONDJUMP,.badlead   ; ?JUMP[.badlead]
                         ; convert to digit
                         dd      DIGIT               ; DIGIT
                         ; ( addr len char digit )
                         dd      DUP,LIT,-1,EQINT    ; DUP -1 =
-                        dd      CONDJUMP,.badlead2  ; JUMP[.badlead2]
-
-                        ; ... TBD ...
-
-
+                        dd      CONDJUMP,.badlead2  ; ?JUMP[.badlead2]
+                        ; ok starts with a digit; this becomes the
+                        ; value field
+                        ; ( addr len char value )
+                        ; get rid of the char
+                        dd      SWAP,DROP           ; SWAP DROP
+                        ; ( addr len value )
+                        ; rotate stack to move value down
+                        dd      ROT
+                        ; ( len value addr )
+                        dd      ROT
+                        ; ( value addr len )
+                        ; read next char
+.nextchar               dd      CGETNCONV       ;   CGETNCONV
+                        ; ( value addr len char )
+                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dd      CONDJUMP,.finish    ; ?JUMP[.finish]
+                        ; convert to digit
+                        dd      DIGIT               ; DIGIT
+                        ; ( value addr len char digit )
+                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dd      CONDJUMP,.finish2   ; ?JUMP[.finish2]
+                        ; have a valid digit: drop char
+                        dd      SWAP,DROP           ; SWAP DROP
+                        ; ( value addr len digit )
+                        dd      LIT,4,ROLL          ; 4 ROLL
+                        ; ( addr len digit value )
+                        dd      PUSHBASE,FETCH      ; BASE @
+                        ; ( addr len digit value base )
+                        dd      MULINT,ADDINT       ; * +
+                        ; ( addr len newvalue )
+                        dd      ROT                 ; ROT
+                        ; ( len newvalue addr )
+                        dd      ROT                 ; ROT
+                        ; ( newvalue addr len )
+                        dd      JUMP,.nextchar      ; JUMP[.nextchar]
+                        ; not digit: back up one char
+                        ; ( value addr len char digit )
+.finish2                dd      BACKNCONV           ; BACKNCONV
+                        ; get rid of digit and char
+                        dd      DROP,DROP           ; DROP DROP
+                        ; ( value addr len )
+                        ; get value on top
+.finish                 dd      ROT                 ; ROT
+                        ; ( addr len value )
+                        ; get address on stack
+                        dd      LIT,3,PICK          ; 3 PICK
+                        ; ( addr len value addr )
+                        ; compute number of digits
+                        dd      PUSHNAME,ADDONE     ; NAME +1
+                        dd      SUBINT              ; -
+                        ; ( addr len value numdigits )
+                        dd      EXIT
+                        ; bad leading char:
                         ; ( addr len char digit )
 .badlead2               dd      DROP                ; DROP
                         ; ( addr len char )
@@ -1211,8 +1348,6 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( addr len )
                         dd      LIT,0,LIT,0         ; 0 0
                         dd      EXIT
-
-
 
                         ; convert number in NAME using BASE
                         ; ( -- number bool )
