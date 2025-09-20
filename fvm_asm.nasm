@@ -1102,36 +1102,61 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( defptr )
 .done                   dd      EXIT
 
-                        ; convert number in NAME using BASE
-                        ; ( -- number bool )
-                        DEFASM  "?MATCHNUM",MATCHNUM,0
-                        CHKOVF  2
-.retry                  mov     rax,[rbp-BASE]
+                        ; check BASE
+                        DEFASM  "CHECKBASE",CHECKBASE,0
+                        mov     rax,[rbp-BASE]
                         cmp     rax,2
                         jl      .badbase
                         cmp     rax,36
-                        jle     .baseok1
-.badbase                call     fvm_badbase
+                        jle     .baseok
+.badbase                call    fvm_badbase
                         mov     rax,10
                         mov     [rbp-BASE],rax
-                        jmp     .retry
-.baseok1                jmp     .baseok2
-.zerolen                sub     r15,16
-                        xor     rax,rax
-                        mov     [r15+8],rax ; number = 0
-                        mov     [r15],rax   ; bool = false
-                        NEXT
-                        ; subroutine to get the next char
-.nextchar               jrcxz   .nochar
-                        lodsb
-                        dec     rcx
-                        movzx   rax,al
-                        ret
-.nochar                 xor     rax,rax
-                        not     rax
-                        ret
-                        ; subroutine to get the next digit
-.nextdigit              call    .nextchar
+.baseok                 NEXT
+
+                        ; initialize numeric conversion
+                        ;   ( -- addr len )
+                        DEFCOL  "INITNCONV",INITNCONV,0
+                        dd      CHECKBASE           ;   CHECKBASE
+                        dd      NAME,DUP,CHARFETCH  ;   NAME DUP C@
+                        ;   ( addr len )
+                        dd      SWAP,ADDONE,SWAP    ;   SWAP +1 SWAP
+                        ;   ( addr len )
+                        dd      EXIT
+
+                        ; get a character for numeric conversion
+                        ;   ( addr len -- addr len char )
+                        ; on error, the character will be -1
+                        DEFCOL  "CGETNCONV",CGETNCONV,0
+                        dd      DUP,EQZEROINT       ;   DUP =0
+                        dd      CONDJUMP,.nochar    ;   ?JUMP[.nochar]
+                        ;   ( addr len )
+                        dd      SWAP,DUP,CHARFETCH  ;   SWAP DUP C@
+                        ;   ( len addr char )
+                        dd      ROT                 ;   ROT
+                        ;   ( addr char len )
+                        dd      SUBONE              ;   -1
+                        dd      ROT                 ;   ROT
+                        ;   ( char len addr )
+                        dd      ADDONE              ;   +1
+                        dd      SWAP                ;   SWAP
+                        ;   ( char addr len )
+                        dd      ROT
+                        ;   ( addr len char )
+                        dd      EXIT
+.nochar                 dd      LIT,-1              ;   -1
+                        dd      EXIT
+
+                        ; convert a character to a digit using the
+                        ; current number BASE
+                        ;   ( char -- char digit )
+                        ; digit will be -1 upon error
+                        ; the original character remains to allow detection
+                        ; of the cause of the error
+                        DEFASM  "DIGIT",DIGIT,0
+                        CHKUNF  1
+                        CHKOVF  1
+                        mov     rax,[r15]
                         cmp     rax,-1
                         je      .enddigit2
                         cmp     al,'0'
@@ -1157,134 +1182,43 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         jae     .nodigit
                         jmp     .enddigit2
 .nodigit                mov     rax,-1
-.enddigit2              ret
-                        ; subroutine to back up one character
-.backuponechar          dec     rsi
-                        inc     rcx
-                        ret
-                        ; get name length
-.baseok2                lea     rsi,[rbp-NAME]
-                        cld
-                        lodsb
-                        ; set counter, stop if zero
-                        mov     cl,al
-                        movzx   rcx,cl
-                        jrcxz   .zerolen2
-                        jmp     .nonzerolen
-.zerolen2               jmp     .zerolen
-                        ; scan for '.' character
-.nonzerolen             mov     rdi,rsi
-                        mov     al,'.'
-                        mov     rdx,rcx
-                        repne   scasb
-                        jne     .notfloat
-                        ; floating-point conversion
-                        ; not implemented at this time
-                        jmp     .dofloat
-                        ; integer conversion
-                        ; read first character to see if it's a sign
-.notfloat               mov     rcx,rdx
-                        mov     r8,1        ; sign = positive
-                        call    .nextchar
-                        cmp     rax,-1
-                        je      .zerolen2
-                        cmp     al,'-'
-                        je      .negative
-                        cmp     al,'+'
-                        je      .readint
-                        call    .backuponechar
-                        jmp     .readint
-.negative               neg     r8          ; sign = negative
-                        ; read first digit
-.readint                call    .nextdigit
-                        cmp     rax,-1
-                        je      .zerolen2
-                        mov     r9,rax      ; r9 = result
-                        ; read follow-up digits
-.readint2               call    .nextdigit
-                        cmp     rax,-1
-                        je      .readintend
-                        xchg    r9,rax      ; r9=digit, rax=result
-                        mul     qword [rbp-BASE]    ; * BASE
-                        add     r9,rax      ; r9 += result*BASE
-                        jmp     .readint
-.readintend             mov     rax,r9      ; rax=result*r8 (r8=sign)
-                        imul    r8
-                        sub     r15,16
-                        mov     [r15+8],rax ; number = result
-                        mov     rax,-1
-                        mov     [r15],rax   ; bool = true
+.enddigit2              sub     r15,8
+                        mov     [r15],rax
                         NEXT
-.zerolen3               jmp     .zerolen
-                        ; floating-point conversion
-                        ; read first character to see if it's a sign
-.dofloat                mov     rcx,rdx
-                        mov     r8,1    ; sign = positive
-                        call    .nextchar
-                        cmp     rax,-1
-                        je      .zerolen3
-                        cmp     al,'-'
-                        je      .negative2
-                        cmp     al,'+'
-                        je      .readfloat
-                        call    .backuponechar
-                        jmp     .readfloat
-.negative2              neg     r8      ; sign = negative
-.readfloat              mov     r10,0   ; has fraction
-                        mov     r11,0   ; exponent
-                        call    .nextchar
-                        cmp     rax,-1
-                        je      .zerolen3
-                        cmp     al,'.'
-                        jne     .notdot
-                        ; begins with '.'
-                        mov     r10,1   ; has fraction = 1
-                        jmp     .readfloat2
-.notdot                 call    .backuponechar
-                        ; read first digit
-                        call    .nextdigit
-                        cmp     rax,-1
-                        je      .zerolen3
-                        mov     r9,rax
-                        ; read follow-up digits
-.readfloat2             call    .nextchar
-                        cmp     rax,-1
-                        je      .floatend
-                        cmp     al,'.'
-                        jne     .notdot2
-                        ; contains '.'
-                        mov     r10,1   ; has fraction = 1
-                        jmp     .readfloat2
-.notdot2                call    .backuponechar
-                        call    .nextdigit
-                        cmp     rax,-1
-                        je      .floatend
-                        xchg    r9,rax      ; r9=digit, rax=result
-                        mul     qword [rbp-BASE]    ; * BASE
-                        add     r9,rax      ; r9 += result*BASE
-                        test    r10,r10
-                        jz      .readfloat2
-                        dec     r11         ; decrease exponent (BASE^x)
-                        jmp     .readfloat2
-                        ; add sign
-.floatend               mov     rax,r9      ; rax=result*r8 (r8=sign)
-                        imul    r8
-                        ; store mantissa for later
-                        mov     [rbp-MANTISSA],rax
-                        ; clear sign and value
-                        xor     r8,r8
-                        xor     r9,r9
-                        ; check if there is another character that indicates
-                        ; exponent notation. this will be either E e or '.
+
+                        ; convert a digit sequence to a number,
+                        ; returning its value and number of digits
+                        ; ( addr len -- addr len numdig value )
+                        ; on error, both values will be zero
+                        DEFCOL  "DSEQNCONV",DSEQNCONV,0
+                        dd      CGETNCONV       ;   CGETNCONV
+                        ; ( addr len char )
+                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dd      CONDJUMP,.badlead   ; JUMP[.badlead]
+                        ; convert to digit
+                        dd      DIGIT               ; DIGIT
+                        ; ( addr len char digit )
+                        dd      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dd      CONDJUMP,.badlead2  ; JUMP[.badlead2]
+
+                        ; ... TBD ...
+
+
+                        ; ( addr len char digit )
+.badlead2               dd      DROP                ; DROP
+                        ; ( addr len char )
+.badlead                dd      DROP                ; DROP
+                        ; ( addr len )
+                        dd      LIT,0,LIT,0         ; 0 0
+                        dd      EXIT
 
 
 
-
-
-
-                        jmp     fvm_notimpl
-
-
+                        ; convert number in NAME using BASE
+                        ; ( -- number bool )
+                        DEFCOL  "?MATCHNUM",MATCHNUM,0
+                        ; ... TBD ...
+                        dd      EXIT
 
 
                         section .rodata
