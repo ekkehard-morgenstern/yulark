@@ -170,11 +170,26 @@ fvm_term                pop     rbx
                         section .text
                         %endmacro
 
+                        %macro  ERRMSG 1
+                        mov     rsi,2   ; STDERR
+                        lea     rdi,%%errtext
+%define ERRTEXT         %1
+                        %strlen cnt ERRTEXT
+                        mov     rdx,cnt+1
+                        mov     rax,__NR_write
+                        syscall
+                        ret
+                        section .rodata
+%%errtext               db      ERRTEXT,10
+                        section .text
+                        %endmacro
+
 fvm_stkovf              ERREND  "? stack overflow"
 fvm_stkunf              ERREND  "? stack underflow"
 fvm_divzro              ERREND  "? division by zero"
 fvm_nofpu               ERREND  "? FPU not found"
-fvm_badbase             ERREND  "? bad number base"
+fvm_badbase             ERRMSG  "? bad number base, reset to 10"
+fvm_notimpl             ERRMSG  "? not implemented"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -1089,12 +1104,15 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( -- number bool )
                         DEFASM  "?MATCHNUM",MATCHNUM,0
                         CHKOVF  2
-                        mov     rax,[rbp-BASE]
+.retry                  mov     rax,[rbp-BASE]
                         cmp     rax,2
                         jl      .badbase
                         cmp     rax,36
                         jle     .baseok1
-.badbase                jmp     fvm_badbase
+.badbase                call     fvm_badbase
+                        mov     rax,10
+                        mov     [rbp-BASE],rax
+                        jmp     .retry
 .baseok1                jmp     .baseok2
 .zerolen                sub     r15,16
                         xor     rax,rax
@@ -1113,7 +1131,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; subroutine to get the next digit
 .nextdigit              call    .nextchar
                         cmp     rax,-1
-                        je      .enddigit
+                        je      .enddigit2
                         cmp     al,'0'
                         jb      .nodigit
                         cmp     al,'9'
@@ -1160,11 +1178,11 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         jne     .notfloat
                         ; floating-point conversion
                         ; not implemented at this time
-                        jmp     .zerolen
+                        jmp     .dofloat
                         ; integer conversion
                         ; read first character to see if it's a sign
 .notfloat               mov     rcx,rdx
-                        mov     r8,1
+                        mov     r8,1        ; sign = positive
                         call    .nextchar
                         cmp     rax,-1
                         je      .zerolen2
@@ -1174,8 +1192,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         je      .readint
                         call    .backuponechar
                         jmp     .readint
-.negative               neg     r8
-                        jmp     .readint
+.negative               neg     r8          ; sign = negative
 .readint                call    .nextdigit
                         cmp     rax,-1
                         je      .zerolen2
@@ -1194,6 +1211,44 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     rax,-1
                         mov     [r15],rax   ; bool = true
                         NEXT
+.zerolen3               jmp     .zerolen
+                        ; floating-point conversion
+                        ; read first character to see if it's a sign
+.dofloat                mov     rcx,rdx
+                        mov     r8,1    ; sign = positive
+                        call    .nextchar
+                        cmp     rax,-1
+                        je      .zerolen3
+                        cmp     al,'-'
+                        je      .negative2
+                        cmp     al,'+'
+                        je      .readfloat
+                        call    .backuponechar
+                        jmp     .readfloat
+.negative2              neg     r8      ; sign = negative
+.readfloat              mov     r10,0   ; has fraction
+                        mov     r11,0   ; exponent
+                        call    .nextchar
+                        cmp     rax,-1
+                        je      .zerolen3
+                        cmp     al,'.'
+                        jne     .notdot
+                        ; begins with '.'
+                        mov     r10,1   ; has fraction = 1
+                        jmp     .readfloat2
+                        ; read first digit
+.notdot                 call    .backuponechar
+                        call    .nextdigit
+                        cmp     rax,-1
+                        je      .zerolen3
+                        mov     r9,rax
+                        ; read follow-up digits
+.readfloat2             call    .nextchar
+                        ; ... TBD ...
+                        jmp     fvm_notimpl
+
+
+
 
                         section .rodata
 
