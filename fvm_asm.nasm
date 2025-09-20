@@ -1193,18 +1193,20 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         call    .backuponechar
                         jmp     .readint
 .negative               neg     r8          ; sign = negative
+                        ; read first digit
 .readint                call    .nextdigit
                         cmp     rax,-1
                         je      .zerolen2
-                        mov     r9,rax
+                        mov     r9,rax      ; r9 = result
+                        ; read follow-up digits
 .readint2               call    .nextdigit
                         cmp     rax,-1
                         je      .readintend
-                        xchg    r9,rax
-                        mul     qword [rbp-BASE]
-                        add     r9,rax
+                        xchg    r9,rax      ; r9=digit, rax=result
+                        mul     qword [rbp-BASE]    ; * BASE
+                        add     r9,rax      ; r9 += result*BASE
                         jmp     .readint
-.readintend             mov     rax,r9
+.readintend             mov     rax,r9      ; rax=result*r8 (r8=sign)
                         imul    r8
                         sub     r15,16
                         mov     [r15+8],rax ; number = result
@@ -1236,15 +1238,36 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; begins with '.'
                         mov     r10,1   ; has fraction = 1
                         jmp     .readfloat2
-                        ; read first digit
 .notdot                 call    .backuponechar
+                        ; read first digit
                         call    .nextdigit
                         cmp     rax,-1
                         je      .zerolen3
                         mov     r9,rax
                         ; read follow-up digits
 .readfloat2             call    .nextchar
-                        ; ... TBD ...
+                        cmp     rax,-1
+                        je      .floatend
+                        cmp     al,'.'
+                        jne     .notdot2
+                        ; contains '.'
+                        mov     r10,1   ; has fraction = 1
+                        jmp     .readfloat2
+.notdot2                call    .backuponechar
+                        call    .nextdigit
+                        cmp     rax,-1
+                        je      .zerolen3
+                        xchg    r9,rax      ; r9=digit, rax=result
+                        mul     qword [rbp-BASE]    ; * BASE
+                        add     r9,rax      ; r9 += result*BASE
+                        test    r10,r10
+                        jz      .readfloat2
+                        dec     r11         ; decrease exponent (BASE^x)
+                        jmp     .readfloat2
+.floatend:
+
+
+
                         jmp     fvm_notimpl
 
 
