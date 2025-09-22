@@ -803,6 +803,14 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; returns the address of the MANTISSA variable
+                        DEFASM  ">MANTISSA",TOMANTISSA,0
+                        CHKOVF  1
+                        lea     rax,[rbp-MANTISSA]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; converts error code to 0
                         DEFASM  "?ERR0",ERR2ZERO,0
                         CHKUNF  1
@@ -1325,9 +1333,11 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dq      JUMP,.nextchar      ; JUMP[.nextchar]
                         ; not digit: back up one char
                         ; ( value addr len char digit )
-.finish2                dq      BACKNCONV           ; BACKNCONV
                         ; get rid of digit and char
-                        dq      DROP,DROP           ; DROP DROP
+.finish2                dq      DROP,DROP           ; DROP DROP
+                        ; ( value addr len )
+                        ; go back one character
+                        dq      BACKNCONV           ; BACKNCONV
                         ; ( value addr len )
                         ; get value on top
 .finish                 dq      ROT                 ; ROT
@@ -1339,6 +1349,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         dq      PUSHNAME,ADDONE     ; NAME +1
                         dq      SUBINT              ; -
                         ; ( addr len value numdigits )
+                        dq      SWAP
+                        ; ( addr len numdigits value )
                         dq      EXIT
                         ; bad leading char:
                         ; ( addr len char digit )
@@ -1347,14 +1359,103 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 .badlead                dq      DROP                ; DROP
                         ; ( addr len )
                         dq      LIT,0,LIT,0         ; 0 0
+                        ; ( addr len 0 0 )
+                        dq      EXIT
+
+                        ; convert a signed digit sequence to a number
+                        ; returning its value and number of digits
+                        ; ( addr len -- addr len numdig value )
+                        ; on error, both values will be zero
+                        DEFCOL  "SSEQNCONV",SSEQNCONV,0
+                        ; ( addr len )
+                        dq      CGETNCONV           ; CGETNCONV
+                        ; ( addr len char )
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.badlead   ; ?JUMP[.badlead]
+                        ; check for sign ('-' or '+')
+                        dq      DUP,LIT,'-',EQINT   ; DUP '-' =
+                        dq      CONDJUMP,.negative  ; ?JUMP[.negative]
+                        dq      DUP,LIT,'+',EQINT   ; DUP '+' =
+                        dq      CONDJUMP,.positive  ; ?JUMP[.positive]
+                        ; neither, go back one character
+                        ; ( addr len char )
+                        dq      DROP,BACKNCONV      ; DROP BACKNCONV
+                        ; ( addr len )
+                        ; push a positive sign and continue
+                        dq      LIT,1               ; 1
+                        dq      JUMP,.continue      ; JUMP[.continue]
+                        ; ( addr len char )
+                        ; push a negative sign and continue
+.negative               dq      DROP,LIT,-1         ; DROP -1
+                        dq      JUMP,.continue      ; JUMP[.continue]
+.positive               dq      DROP,LIT,1          ; DROP 1
+                        ; ( addr len sign )
+                        ; rotate to get sign to the bottom
+.continue               dq      ROT                 ; ROT
+                        ; ( len sign addr )
+                        dq      ROT                 ; ROT
+                        ; ( sign addr len )
+                        ; convert remainder to digit sequence
+                        dq      DSEQNCONV           ; DSEQNCONV
+                        ; ( sign addr len numdigits value )
+                        ; check numdigits value
+                        dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
+                        dq      CONDJUMP,.convfail  ; ?JUMP[.convfail]
+                        ; looking good
+                        ; ( sign addr len numdigits value )
+                        ; roll the stack to get sign on top
+                        dq      LIT,5,ROLL          ; 5 ROLL
+                        ; ( addr len numdigits value sign )
+                        ; multiply sign and value
+                        dq      MULINT              ; *
+                        ; ( addr len numdigits newvalue )
+                        ; done!
+                        dq      EXIT
+                        ; ( sign addr len numdigits value )
+                        ; conversion failure:
+                        ; get rid of value and numdigits
+.convfail               dq      DROP,DROP           ; DROP DROP
+                        ; ( sign addr len )
+                        ; rotate to get the sign in front then drop it
+                        dq      ROT
+                        ; ( addr len sign )
+                        ; same
+                        ; ( addr len char )
+.badlead                dq      DROP                ; DROP
+                        ; ( addr len )
+                        dq      LIT,0,LIT,0         ; 0 0
+                        ; ( addr len 0 0 )
                         dq      EXIT
 
                         ; convert number in NAME using BASE
                         ; ( -- number bool )
                         DEFCOL  "?MATCHNUM",MATCHNUM,0
-                        ; ... TBD ...
-                        dq      EXIT
+                        ; initialize numeric conversion
+                        dq      INITNCONV           ; INITNCONV
+                        ; ( addr len )
+                        ; attempt to convert the leading characters
+                        ; into a signed number
+                        dq      SSEQNCONV           ; SSEQNCONV
+                        ; ( addr len numdigits value )
+                        ; check numdigits for 0
+                        dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
+                        dq      CONDJUMP,.convfail  ; ?JUMP[.convfail]
+                        ; ( addr len numdigits value )
+                        ; store the value into the mantissa
+                        ; and drop the numdigits field
+                        dq      TOMANTISSA,STORE    ; >MANTISSA !
+                        dq      DROP                ; DROP
+                        ; ( addr len )
+                        ; ... to be continued ...
 
+
+                        dq      EXIT
+                        ; ( addr len numdigits value )
+                        ; drop value and numdigits and replace it
+                        ; with 0 0
+.convfail               dq      DROP,DROP           ; DROP DROP
+                        dq      LIT,0,LIT,0         ; 0 0
+                        dq      EXIT
 
                         section .rodata
 
