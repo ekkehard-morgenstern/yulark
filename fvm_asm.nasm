@@ -1623,11 +1623,44 @@ _fpowl                  push    rsi
                         ; ( -- number bool )
                         DEFASM  "GETREAL",GETREAL,0
                         CHKOVF  2
-                        ; ... TBD ...
-
+                        ; compute BASE to the power of exponent
+                        mov     rdi,[rbp-BASE]
+                        mov     rsi,[rbp-EXPONENT]
+                        call    _fpowl
+                        ; multiply the result with the mantissa
+                        push    rax
+                        fld     qword [rsp]
+                        pop     rax
+                        fld     qword [rbp-MANTISSA]
+                        fmulp
+                        ; st0 = mantissa * ( BASE ^ exponent )
+                        ; compute the fraction by 1 / ( BASE ^ fracndig )
+                        fld1
+                        mov     rdi,[rbp-BASE]
+                        mov     rsi,[rbp-FRACNDIG]  ; integer
+                        ; convert FRACNDIG to floating-point
+                        push    rsi
+                        fild    qword [rsp]
+                        fstp    qword [rsp]
+                        pop     rsi
+                        ; computer power BASE ^ fracndig
+                        call    _fpowl
+                        push    rax
+                        fld     qword [rsp]
+                        pop     rax
+                        ; st2 = mantissa * ( BASE ^ exponent )
+                        ; st1 = 1
+                        ; st0 = BASE ^ fracndig
+                        ; compute 1 / ( BASE ^ fracndig )
+                        fdivp
+                        ; st1 = mantissa * ( BASE ^ exponent )
+                        ; st0 = 1 / ( BASE ^ fracndig )
+                        ; add fraction to result
+                        faddp
+                        ; output result
                         sub     r15,16
-                        xor     rax,rax     ; TBD get number
-                        mov     [r15+8],rax ; number
+                        fstp    qword [r15+8] ; result
+                        xor     rax,rax
                         not     rax
                         mov     [r15],rax   ; true
                         NEXT
