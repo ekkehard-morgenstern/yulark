@@ -771,25 +771,25 @@ _fcomp                  push    rsi
 .eql                    mov     rax,0           ; equal
 .end                    ret
 
-                        ; compute power x^y
+                        ; compute power x^y (limited)
                         ; ( x y -- res )
                         ; LIMITATION: x must be positive and non-zero
                         ; TODO: handle special cases
-                        DEFASM  "FPOW",FPOW,0
+                        DEFASM  "FPOWL",FPOWL,0
                         CHKUNF  2
                         mov     rdi,[r15+8]
                         mov     rsi,[r15]
-                        call    _fpow
+                        call    _fpowl
                         add     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        ; compute power x^y
+                        ; compute power x^y (limited)
                         ; rdi - value1 (x), rsi - value2 (y)
                         ; rax - result
                         ; LIMITATION: x must be positive and non-zero
                         ; TODO: handle special cases
-_fpow                   push    rsi
+_fpowl                  push    rsi
                         push    rdi
                         ; formula for computing x^y
                         ; x^y := 2^(y * log2(x))
