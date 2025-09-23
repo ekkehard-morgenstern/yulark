@@ -74,6 +74,12 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
+                        ; rbp-0x1a8     floating-point exponent (conversion)
+%define EXPONENT        0x1a8
+                        ; rbp-0x1b0     floating-point fraction numdigits
+%define FRACNDIG        0x1b0
+                        ; rbp-0x1b8     floating-point fraction (conversion)
+%define FRACTION        0x1b8
                         ; rbp-0x1c0     floating-point mantissa (conversion)
 %define MANTISSA        0x1c0
                         ; rbp-0x1c8     BASE
@@ -811,6 +817,30 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; returns the address of the FRACTION variable
+                        DEFASM  ">FRACTION",TOFRACTION,0
+                        CHKOVF  1
+                        lea     rax,[rbp-FRACTION]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; returns the address of the FRACNDIG variable
+                        DEFASM  ">FRACNDIG",TOFRACNDIG,0
+                        CHKOVF  1
+                        lea     rax,[rbp-FRACNDIG]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; returns the address of the EXPONENT variable
+                        DEFASM  ">MANTISSA",TOEXPONENT,0
+                        CHKOVF  1
+                        lea     rax,[rbp-EXPONENT]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; converts error code to 0
                         DEFASM  "?ERR0",ERR2ZERO,0
                         CHKUNF  1
@@ -1427,6 +1457,20 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( addr len 0 0 )
                         dq      EXIT
 
+                        ; convert number in floating-point fields
+                        ; to actual floating-point and return it
+                        ; ( -- number bool )
+                        DEFASM  "GETREAL",GETREAL,0
+                        CHKOVF  2
+                        ; ... TBD ...
+
+                        sub     r15,16
+                        xor     rax,rax     ; TBD get number
+                        mov     [r15+8],rax ; number
+                        not     rax
+                        mov     [r15],rax   ; true
+                        NEXT
+
                         ; convert number in NAME using BASE
                         ; ( -- number bool )
                         DEFCOL  "?MATCHNUM",MATCHNUM,0
@@ -1439,22 +1483,119 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         ; ( addr len numdigits value )
                         ; check numdigits for 0
                         dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
-                        dq      CONDJUMP,.convfail  ; ?JUMP[.convfail]
+                        dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
                         ; ( addr len numdigits value )
                         ; store the value into the mantissa
                         ; and drop the numdigits field
                         dq      TOMANTISSA,STORE    ; >MANTISSA !
                         dq      DROP                ; DROP
+                        ; clear fraction and exponent
+                        dq      LIT,0               ; LIT 0
+                        dq      DUP,TOFRACTION,STORE ; DUP >FRACTION !
+                        dq      DUP,TOFRACNDIG,STORE ; DUP >FRACNDIG !
+                        dq      TOEXPONENT,STORE    ; >EXPONENT !
                         ; ( addr len )
-                        ; ... to be continued ...
-
-
+                        ; See if the following character introduces a fraction
+                        ; or exponent. Only if there's no more characters right
+                        ; now, it's an integer. Otherwise, it's a conversion
+                        ; error, if there's no fraction or exponent.
+                        dq      CGETNCONV           ; CGETNCONV
+                        ; ( addr len char )
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.integer   ; ?JUMP[.integer]
+                        ; ( addr len char )
+                        dq      DUP,LIT,'.',EQINT   ; DUP '.' =
+                        dq      CONDJUMP,.fraction  ; ?JUMP[.fraction]
+                        dq      DUP,LIT,'e',EQINT   ; DUP 'e' =
+                        dq      CONDJUMP,.exponent  ; ?JUMP[.exponent]
+                        dq      DUP,LIT,'E',EQINT   ; DUP 'E' =
+                        dq      CONDJUMP,.exponent  ; ?JUMP[.exponent]
+                        dq      DUP,LIT,"'",EQINT   ; DUP "'" =
+                        dq      CONDJUMP,.exponent  ; ?JUMP[.exponent]
+                        ; neither: this means conversion error
+                        ; drop the character, length and address
+.convfail               dq      DROP                ; DROP
+                        ; ( addr len )
+.convfail3              dq      DROP,DROP           ; DROP DROP
+                        ; ( )
+                        ; push 0 0 as number/bool
+.convfail4              dq      LIT,0,LIT,0         ; 0 0
+                        ; ( 0 0 )
                         dq      EXIT
+                        ; conversion error from fraction
                         ; ( addr len numdigits value )
-                        ; drop value and numdigits and replace it
-                        ; with 0 0
-.convfail               dq      DROP,DROP           ; DROP DROP
-                        dq      LIT,0,LIT,0         ; 0 0
+.convfail2              dq      DROP                ; DROP
+                        dq      JUMP,.convfail      ; JUMP[.convfail]
+                        ; integer case
+                        ; ( addr len char )
+                        ; drop the character, length and address
+.integer                dq      DROP,DROP,DROP      ; DROP DROP DROP
+                        ; ( )
+                        ; push number and true
+                        dq      TOMANTISSA,FETCH    ; >MANTISSA @
+                        dq      LIT,-1              ; -1
+                        dq      EXIT
+                        ; fraction case:
+                        ; ( addr len char )
+                        ; drop the character
+.fraction               dq      DROP                ; DROP
+                        ; ( addr len )
+                        ; get unsigned number as fraction digits
+                        dq      DSEQNCONV           ; DSEQNCONV
+                        ; ( addr len numdigits value )
+                        ; check the numdigits
+                        dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
+                        dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
+                        ; ( addr len numdigits value )
+                        ; we are all go, set the variables
+                        dq      TOFRACTION,STORE    ; >FRACTION !
+                        dq      TOFRACNDIG,STORE    ; >FRACNDIG !
+                        ; ( addr len )
+                        ; now we have to check whether there's an
+                        ; exponent being introduced (if not, it's OK)
+                        dq      CGETNCONV           ; CGETNCONV
+                        ; ( addr len char )
+                        dq      DUP,LIT,-1,EQINT    ; DUP -1 =
+                        dq      CONDJUMP,.floatingpoint ; ?JUMP[.floatingpoint]
+                        ; ( addr len char )
+                        dq      DUP,LIT,'e',EQINT   ; DUP 'e' =
+                        dq      CONDJUMP,.exponent  ; ?JUMP[.exponent]
+                        dq      DUP,LIT,'E',EQINT   ; DUP 'E' =
+                        dq      CONDJUMP,.exponent  ; ?JUMP[.exponent]
+                        dq      DUP,LIT,"'",EQINT   ; DUP "'" =
+                        dq      CONDJUMP,.exponent  ; ?JUMP[.exponent]
+                        ; unrecognized character means conversion error
+                        dq      JUMP,.convfail      ; ?JUMP[.convfail]
+                        ; ( addr len char )
+                        ; if we have an exponent:
+                        ; drop the character
+.exponent               dq      DROP                ; DROP
+                        ; ( addr len )
+                        ; read a signed number
+                        dq      SSEQNCONV           ; SSEQNCONV
+                        ; ( addr len numdigits value )
+                        ; check the numdigits
+                        dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
+                        dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
+                        ; seems valid, store the exponent, drop numdigits
+                        dq      TOEXPONENT,STORE    ; >EXPONENT !
+                        dq      DROP                ; DROP
+                        ; ( addr len )
+                        ; there should be no more characters now
+                        dq      DUP,EQZEROINT       ; DUP =0
+                        dq      CONDJUMP,.convfail3 ; ?JUMP[.convfail3]
+                        ; otherwise, we're finished reading a
+                        ; floating-point number
+                        ; ( addr len )
+                        dq      JUMP,.floatingpoint2 ; JUMP[.floatingpoint2]
+                        ; ( addr len char )
+                        ; drop fields
+.floatingpoint          dq      DROP
+.floatingpoint2         dq      DROP,DROP
+                        ; ( )
+                        ; convert to real number and push it and the truth value
+                        dq      GETREAL
+                        ; ( number bool )
                         dq      EXIT
 
                         section .rodata
