@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <math.h>
 
 extern uint64_t _fpowl( uint64_t a, uint64_t b );
 
@@ -65,6 +66,11 @@ int main( int argc, char** argv ) {
     wu_t u;
     u.ui = c;
     printf( "%g\n", u.d );
+
+    u.ui = a; double da = u.d;
+    u.ui = b; double db = u.d;
+    double dc = pow( da, db );
+    printf ("%g^%g = %g\n", da, db, dc );
 
     return EXIT_SUCCESS;
 }

@@ -659,6 +659,13 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fistp   qword [r15]
                         NEXT
 
+                        DEFASM  "FRNDINT",FROUNDINT,0
+                        CHKUNF  1
+                        fld     qword [r15]
+                        frndint
+                        fstp    qword [r15]
+                        NEXT
+
                         ; floating-point addition
                         ; ( n1 n2 -- res )
                         DEFASM  "F+",ADDFLT,0
@@ -852,6 +859,45 @@ _fpowl                  push    rsi
                         fabs
                         fstp    qword [r15]
                         NEXT
+
+                        ; compute power x^y
+                        ; ( x y -- n )
+                        DEFCOL  "FPOW",FPOWER,0
+                        ; check if x is below zero
+                        dq      LIT,2,PICK  ; 2 PICK
+                        dq      LIT,0.0     ; 0.0
+                        dq      COMPFLT     ; FCOMP
+                        dq      LEZEROINT   ; <=0
+                        dq      DUP         ; DUP
+                        dq      CONDJUMP,.lezero ; ?JUMP[.lezero]
+                        ; not below zero: compute power
+                        dq      DROP        ; DROP
+.finish                 dq      FPOWL       ; FPOWL
+                        dq      EXIT
+                        ; ( x y sign )
+                        ; below zero
+.lezero                 dq      EQZEROINT   ; =0
+                        dq      CONDJUMP,.zero ; ?JUMP[.zero]
+                        ; ( x y )
+                        ; x is negative
+                        ; round y to integer
+                        dq      FROUNDINT   ; FRNDINT
+                        ; compute absolute value of x
+                        dq      SWAP,FABSOLUTE,SWAP ; SWAP FABS SWAP
+                        ; test if y is odd
+                        ; if even, the signs cancel each other out
+                        ; if odd, the sign prevails
+                        dq      DUP,LIT,1,BINAND ; DUP 1 AND
+                        dq      EQZEROINT       ; =0 (even)
+                        dq      CONDJUMP,.finish ; ?JUMP[.finish]
+                        ; odd: compute then invert sign
+                        dq      FPOWL,FNEGATE   ; FPOWL FNEG
+                        dq      EXIT
+                        ; ( x y )
+                        ; x is 0, 0^y is always zero
+.zero                   dq      DROP,DROP   ; DROP DROP
+                        dq      LIT,0.0     ; 0.0
+                        dq      EXIT
 
                         ; to-latest: returns the address of the LATEST variable
                         DEFASM  ">LATEST",TOLATEST,0
