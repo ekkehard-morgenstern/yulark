@@ -832,6 +832,7 @@ _fpowl                  push    rsi
                         ffree   st0
                         fincstp
                         add     rsp,8
+                        pop     rax
                         ret
 
                         ; to-latest: returns the address of the LATEST variable
