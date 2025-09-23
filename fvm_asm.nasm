@@ -773,6 +773,8 @@ _fcomp                  push    rsi
 
                         ; compute power x^y
                         ; ( x y -- res )
+                        ; LIMITATION: x must be positive and non-zero
+                        ; TODO: handle special cases
                         DEFASM  "FPOW",FPOW,0
                         CHKUNF  2
                         mov     rdi,[r15+8]
@@ -786,6 +788,7 @@ _fcomp                  push    rsi
                         ; rdi - value1 (x), rsi - value2 (y)
                         ; rax - result
                         ; LIMITATION: x must be positive and non-zero
+                        ; TODO: handle special cases
 _fpow                   push    rsi
                         push    rdi
                         ; formula for computing x^y
@@ -802,15 +805,15 @@ _fpow                   push    rsi
                         ; do fscale on the computation result using the
                         ; integral part of the previous result.
                         fld1
-                        fld         st1     ; save int part for scale
+                        fld     st1     ; save int part for scale
                         ; at this point, the FPU stack should look like this:
                         ;   st2     (previous result)
                         ;   st1     1
                         ;   st0     (previous result)
 .loop_prem              fprem               ; n=fmod(result,1)
-                        fstsw       ax
-                        test        ax,0x0400
-                        jnz         .loop_prem
+                        fstsw   ax
+                        test    ax,0x0400
+                        jnz     .loop_prem
                         ;   st2     (previous result)
                         ;   st1     1
                         ;   st0     (fprem result)
