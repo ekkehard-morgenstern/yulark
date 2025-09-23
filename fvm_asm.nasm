@@ -846,7 +846,7 @@ _fpowl                  push    rsi
 
                         ; compute absolute value of floating-point number
                         ; ( n -- n )
-                        DEFASM  "FNEG",FABSOLUTE,0
+                        DEFASM  "FABS",FABSOLUTE,0
                         CHKUNF  1
                         fld     qword [r15]
                         fabs
