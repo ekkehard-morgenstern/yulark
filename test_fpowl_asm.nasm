@@ -78,3 +78,6 @@ _fpowl                  push    rsi
                         add     rsp,8
                         pop     rax
                         ret
+
+                        section .note.GNU-stack
+

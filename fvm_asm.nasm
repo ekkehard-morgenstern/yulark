@@ -1796,3 +1796,6 @@ _fpowl                  push    rsi
 
                         align   8
 fvm_last_sysword        dq      LINKBACK
+
+                        section .note.GNU-stack
+
