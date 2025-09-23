@@ -835,6 +835,24 @@ _fpowl                  push    rsi
                         pop     rax
                         ret
 
+                        ; change sign of floating-point number
+                        ; ( n -- n )
+                        DEFASM  "FNEG",FNEGATE,0
+                        CHKUNF  1
+                        fld     qword [r15]
+                        fchs
+                        fstp    qword [r15]
+                        NEXT
+
+                        ; compute absolute value of floating-point number
+                        ; ( n -- n )
+                        DEFASM  "FNEG",FABSOLUTE,0
+                        CHKUNF  1
+                        fld     qword [r15]
+                        fabs
+                        fstp    qword [r15]
+                        NEXT
+
                         ; to-latest: returns the address of the LATEST variable
                         DEFASM  ">LATEST",TOLATEST,0
                         CHKOVF  1
