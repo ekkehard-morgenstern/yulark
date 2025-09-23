@@ -701,12 +701,10 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fld     qword [r15+8]   ; st0
                         xor     rax,rax
                         push    rax
-.repeat                 fprem1              ; compute partial remainder
-                        fstcw   word [rsp]  ; get FPU status word
-                        mov     ax,[rsp]
+.repeat                 fprem               ; compute partial remainder
+                        fstsw   ax          ; get FPU status word
                         and     ax,0x0400   ; test C2 FPU flag
                         jnz     .repeat     ; loop until zero
-                        pop     rax
                         add     r15,8
                         fstp    qword [r15]
                         ffree   st0
@@ -717,15 +715,12 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         CHKUNF  2
                         fld     qword [r15+8]   ; st0
                         fcomp   qword [r15]     ; cmp st0,src
-                        xor     rax,rax
-                        push    rax
-                        fstcw   word [rsp]      ; get FPU status word
-                        pop     rax
-                        and     ax,0x4500
+                        fstsw   ax              ; get FPU status word
+                        and     ax,0x4500       ; C3/C2/C0
                         jz      .grt
-                        cmp     ax,0x0100
+                        cmp     ax,0x0100       ; C0
                         je      .lwr
-                        cmp     ax,0x4000
+                        cmp     ax,0x4000       ; C3
                         je      .eql
                         mov     rax,-2          ; indicate error
                         jmp     .end
