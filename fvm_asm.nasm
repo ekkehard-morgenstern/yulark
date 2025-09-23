@@ -659,6 +659,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fistp   qword [r15]
                         NEXT
 
+                        ; floating-point addition
+                        ; ( n1 n2 -- res )
                         DEFASM  "F+",ADDFLT,0
                         CHKUNF  2
                         fld     qword [r15+8]   ; st1
@@ -668,6 +670,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fstp    qword [r15]
                         NEXT
 
+                        ; floating-point subtraction
+                        ; ( n1 n2 -- res )
                         DEFASM  "F-",SUBFLT,0
                         CHKUNF  2
                         fld     qword [r15+8]   ; st1
@@ -677,6 +681,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fstp    qword [r15]
                         NEXT
 
+                        ; floating-point multiplication
+                        ; ( n1 n2 -- res )
                         DEFASM  "F*",MULFLT,0
                         CHKUNF  2
                         fld     qword [r15+8]   ; st1
@@ -686,6 +692,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fstp    qword [r15]
                         NEXT
 
+                        ; floating-point divide
+                        ; ( n1 n2 -- res )
                         DEFASM  "F/",DIVFLT,0
                         CHKUNF  2
                         fld     qword [r15+8]   ; st1
@@ -695,26 +703,58 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         fstp    qword [r15]
                         NEXT
 
+                        ; compute floating-point remainder
+                        ; ( n1 n2 -- res )
                         DEFASM  "FMOD",MODFLT,0
                         CHKUNF  2
-                        fld     qword [r15]     ; st1
-                        fld     qword [r15+8]   ; st0
-                        xor     rax,rax
-                        push    rax
+                        mov     rdi,[r15+8]
+                        mov     rsi,[r15]
+                        call    _fmod
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; subroutine _fmod( value1, value2 )
+                        ; compute floating-point remainder
+                        ; rdi - value1, rsi - value2
+_fmod                   push    rsi
+                        push    rdi
+                        fld     qword [rsp+8]     ; st1 - value2
+                        fld     qword [rsp]       ; st0 - value1
+                        add     rsp,16
 .repeat                 fprem               ; compute partial remainder
                         fstsw   ax          ; get FPU status word
                         and     ax,0x0400   ; test C2 FPU flag
                         jnz     .repeat     ; loop until zero
-                        add     r15,8
-                        fstp    qword [r15]
+                        xor     rax,rax
+                        push    rax
+                        fstp    qword [rsp]
+                        pop     rax
                         ffree   st0
                         fincstp
-                        NEXT
+                        ret
 
+                        ; compare two floating point numbers
+                        ; ( n1 n2 -- res )
+                        ; returns -2 for errors
                         DEFASM  "FCOMP",COMPFLT,0
                         CHKUNF  2
-                        fld     qword [r15+8]   ; st0
-                        fcomp   qword [r15]     ; cmp st0,src
+                        mov     rdi,[r15+8]
+                        mov     rsi,[r15]
+                        call    _fcomp
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; compare two floating-point numbers
+                        ; rdi - value1, rsi - value2
+                        ; rax - result
+                        ; returns -2 for errors
+_fcomp                  push    rsi
+                        push    rdi
+                        fld     qword [rsp]     ; st0 - value1
+                        fcomp   qword [rsp+8]   ; cmp st0,src(=value2)
+                        add     rsp,16
                         fstsw   ax              ; get FPU status word
                         and     ax,0x4500       ; C3/C2/C0
                         jz      .grt
@@ -729,9 +769,67 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 .lwr                    mov     rax,-1          ; lower
                         jmp     .end
 .eql                    mov     rax,0           ; equal
-.end                    add     r15,8
+.end                    ret
+
+                        ; compute power x^y
+                        ; ( x y -- res )
+                        DEFASM  "FPOW",FPOW,0
+                        CHKUNF  2
+                        mov     rdi,[r15+8]
+                        mov     rsi,[r15]
+                        call    _fpow
+                        add     r15,8
                         mov     [r15],rax
                         NEXT
+
+                        ; compute power x^y
+                        ; rdi - value1 (x), rsi - value2 (y)
+                        ; rax - result
+                        ; LIMITATION: x must be positive and non-zero
+_fpow                   push    rsi
+                        push    rdi
+                        ; formula for computing x^y
+                        ; x^y := 2^(y * log2(x))
+                        ; first, compute y * log2(x)
+                        fld     qword [rsp+8]   ; st1 - value2 (y)
+                        fld     qword [rsp]     ; st0 - value1 (x)
+                        fyl2x
+                        ; st0 - result
+                        ; now we need to compute 2^result
+                        ; easier said than done ...
+                        ; first we have to do fmod(result,1) to extract a
+                        ; fraction in the form -1 .. +1 (for f2xm1), and then
+                        ; do fscale on the computation result using the
+                        ; integral part of the previous result.
+                        fld1
+                        fld         st1     ; save int part for scale
+                        ; at this point, the FPU stack should look like this:
+                        ;   st2     (previous result)
+                        ;   st1     1
+                        ;   st0     (previous result)
+.loop_prem              fprem               ; n=fmod(result,1)
+                        fstsw       ax
+                        test        ax,0x0400
+                        jnz         .loop_prem
+                        ;   st2     (previous result)
+                        ;   st1     1
+                        ;   st0     (fprem result)
+                        f2xm1               ; (2^n-1)+1
+                        faddp
+                        ;   st1     (previous result)
+                        ;   st0     (fixed-up f2xm1 result)
+                        ; fscale takes the int part of st1 and adds it to the
+                        ; exponent of st0, effectively yielding the desired
+                        ; result.
+                        fscale
+                        ;   st1     (previous result)
+                        ;   st0     (final result)
+                        fstp    qword [rsp+8]
+                        ;   st0     (previous result)
+                        ffree   st0
+                        fincstp
+                        add     rsp,8
+                        ret
 
                         ; to-latest: returns the address of the LATEST variable
                         DEFASM  ">LATEST",TOLATEST,0
