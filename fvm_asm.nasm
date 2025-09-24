@@ -74,6 +74,10 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
+                        ; rbp-0x198     is in immediate mode
+%define ISIMMED         0x198
+                        ; rbp-0x1a0     is in compile mode
+%define ISCOMP          0x1a0
                         ; rbp-0x1a8     floating-point exponent (conversion)
 %define EXPONENT        0x1a8
                         ; rbp-0x1b0     floating-point fraction numdigits
@@ -1210,6 +1214,20 @@ _fpowl                  push    rsi
                         ; ( char )
                         dq      EXIT
 
+                        DEFCOL  "SKIPSPC",SKIPSPC,0
+.nextchar               dq      PADGETCH,DUP    ;   PADGETCH
+                        dq      DUP,LIT,-1,EQINT ;  DUP -1 =
+                        dq      CONDJUMP,.finish ;  ?JUMP[.finish]
+                        dq      DUP,ISSPC       ;   DUP ?SPC
+                        dq      CONDJUMP,.finish2 ;  ?JUMP[.finish2]
+                        dq      JUMP,.nextchar  ;   JUMP[.nextchar]
+                        ; ( char )
+                        ; decrement character position for PAD
+.finish2                dq      TOIN,DECR       ;   >IN DECR
+                        ; ( char )
+.finish                 dq      DROP            ;   DROP
+                        dq      EXIT
+
                         ; read a word from input into NAME buffer
                         ; returns address and length
                         ; ( -- addr len )
@@ -1219,6 +1237,8 @@ _fpowl                  push    rsi
                         dq      LIT,0           ;   0
                         dq      PUSHNAME        ;   NAME
                         dq      CHARSTORE       ;   C!
+                        ; skip whitespace
+                        dq      SKIPSPC         ;   SKIPSPC
                         ; read a character from the PAD
 .nextchar               dq      PADGETCH,DUP    ;   PADGETCH DUP
                         dq      LIT,-1,EQINT    ;   -1 =
@@ -1350,16 +1370,6 @@ _fpowl                  push    rsi
                         mov     rax,10
                         mov     [rbp-BASE],rax
 .baseok                 NEXT
-
-                        ; initialize numeric conversion
-                        ;   ( -- addr len )
-                        DEFCOL  "INITNCONV",INITNCONV,0
-                        dq      CHECKBASE           ;   CHECKBASE
-                        dq      NAME,DUP,CHARFETCH  ;   NAME DUP C@
-                        ;   ( addr len )
-                        dq      SWAP,ADDONE,SWAP    ;   SWAP +1 SWAP
-                        ;   ( addr len )
-                        dq      EXIT
 
                         ; get a character for numeric conversion
                         ;   ( addr len -- addr len char )
@@ -1702,11 +1712,11 @@ _fpowl                  push    rsi
                         mov     [r15],rax   ; true
                         NEXT
 
-                        ; convert number in NAME using BASE
-                        ; ( -- number bool )
+                        ; convert number using BASE
+                        ; ( addr len -- number bool )
                         DEFCOL  "?MATCHNUM",MATCHNUM,0
                         ; initialize numeric conversion
-                        dq      INITNCONV           ; INITNCONV
+                        dq      CHECKBASE           ; CHECKBASE
                         ; ( addr len )
                         ; attempt to convert the leading characters
                         ; into a signed number
@@ -1840,21 +1850,72 @@ _fpowl                  push    rsi
 .ok                     NEXT
 
                         ; get address of codeword from dictionary entry
+                        ; (codeword from address, CFA)
                         ; ( addr -- addr )
-                        DEFCOL  "CODEWORD",CODEWORD,0
+                        DEFCOL  ">CFA",TOCFA,0
                         dq      CHKPTR          ; CHKPTR
                         ; move to name field
                         dq      LIT,8,ADDINT    ; 8 +
                         ; ( addr )
                         ; get name length
                         dq      DUP,CHARFETCH   ; DUP C@
+                        dq      LIT,31,BINAND   ; 31 AND
                         ; ( addr len )
-                        ; add 1+len
+                        ; add 1+len to addr
                         dq      ADDONE,ADDINT   ; +1 +
                         ; add 7 and AND NOT 7
                         dq      LIT,7,ADDINT    ; 7 +
                         dq      LIT,7,BINNOT,BINAND ; 7 NOT AND
                         ; finished
+                        dq      EXIT
+
+                        ; create a new dictionary entry with specified name
+                        ; and update the backwards link, leave the value of HERE
+                        ; ( addr len -- here )
+                        DEFASM  "CREATE",CREATE,0
+                        CHKUNF  2
+                        mov     rsi,[r15+8]
+                        mov     rcx,[r15]
+                        mov     rdi,rbx             ; HERE
+                        mov     rax,[rbp-LATEST]    ; LATEST
+                        cld
+                        ; set LATEST to HERE
+                        mov     [rbp-LATEST],rbx    ; LATEST = HERE
+                        ; put the link backwards at the current position
+                        stosq
+                        ; store the length (make sure its not longer than 31)
+                        and     rcx,31
+                        stosb
+                        ; check for zero count
+                        jrcxz   .zeroname
+                        ; copy the name
+                        rep     movsb
+                        ; round up address to next quadword boundary
+.zeroname               add     rdi,7
+                        and     rdi,~7
+                        ; done, update dictionary pointer
+                        mov     rbx,rdi
+                        add     r15,8
+                        mov     [r15],rbx   ; leave HERE on stack
+                        NEXT
+
+                        ; store specified data word to the position
+                        ; indicated by the dictionary pointer and update it
+                        ; ( data -- )
+                        DEFASM  ",",COMMA,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        mov     rdi,rbx
+                        cld
+                        stosq
+                        mov     rbx,rdi
+                        add     r15,8
+                        NEXT
+
+                        ; begin word compilation
+                        DEFCOL  ":",COLON,0
+                        dq      READWORD    ; read next word
+                        ; ... to be continued ...
                         dq      EXIT
 
                         section .rodata
