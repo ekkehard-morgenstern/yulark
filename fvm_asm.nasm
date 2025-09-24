@@ -1197,7 +1197,7 @@ _fpowl                  push    rsi
                         dq      TOMAX,FETCH     ;   >MAX @
                         dq      NEZEROINT       ;   <>0
                         ; if not, skip the following block
-                        dq      CONDSKIP,3      ;   ?SKIP[+3]
+                        dq      CONDJUMP,.cont  ;   ?JUMP[.cont]
                         ; otherwise, push a -1 and exit
                         dq      LIT,-1          ;   -1
                         dq      EXIT            ;   EXIT
@@ -1210,34 +1210,56 @@ _fpowl                  push    rsi
                         ; ( char )
                         dq      EXIT
 
-                        ; read a word from input into NAME buffer ( -- )
+                        ; read a word from input into NAME buffer
+                        ; returns address and length
+                        ; ( -- addr len )
+                        ; if the result would be empty, return 0 0
                         DEFCOL  "WORD",READWORD,0
                         ; clear name length
                         dq      LIT,0           ;   0
                         dq      PUSHNAME        ;   NAME
-                        dq      CHARSTORE       ;   C@
+                        dq      CHARSTORE       ;   C!
                         ; read a character from the PAD
 .nextchar               dq      PADGETCH,DUP    ;   PADGETCH DUP
                         dq      LIT,-1,EQINT    ;   -1 =
-                        dq      CONDSKIP,7      ;   ?SKIP[+7]
+                        dq      CONDJUMP,.end   ;   ?JUMP[.end]
                         ; ( char )
                         ; compare it to one of the terminator characters
                         ; (SPC, TAB, NEWLINE, NUL)
                         dq      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
-                        dq      CONDSKIP,5      ;   ?SKIP[+5]
+                        dq      CONDJUMP,.storechr ; ?JUMP[.storechr]
                         ; decrement character position for PAD
                         dq      TOIN,DECR       ;   >IN DECR
                         ; end
-                        dq      DROP            ;   DROP (char)
-                        dq      PUSHNAME        ;   leave NAME address
+                        ; (char)
+.end                    dq      DROP            ;   DROP
+                        ; leave NAME address
+.end2                   dq      PUSHNAME        ;   NAME
+                        ; ( addr )
+                        ; leave length
+                        dq      DUP,CHARFETCH   ;   DUP C@
+                        ; ( addr len )
+                        ; test length if it is zero
+                        dq      DUP,EQZEROINT   ;   DUP =0
+                        dq      CONDJUMP,.end3  ;   ?JUMP[.end3]
+                        ; make sure addr points to first character
+                        dq      SWAP,ADDONE,SWAP ;  SWAP +1 SWAP
+                        ; ( addr len )
+                        dq      EXIT
+                        ; ( addr len )
+                        ; length is zero: drop address and length
+                        ; and leave zero values instead
+.end3                   dq      DROP,DROP       ;   DROP DROP
+                        dq      LIT,0,LIT,0     ;   0 0
                         dq      EXIT
                         ; ( char )
                         ; increment name length and leave a copy of it
-                        dq      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
+.storechr               dq      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
                         dq      CHARFETCH       ;   C@
                         ; ( char count )
                         ; store the character into the new position
                         dq      PUSHNAME,ADDINT ;   NAME +
+                        ; ( char addr )
                         dq      CHARSTORE       ;   C!
                         ; ( )
                         ; read the count back
@@ -1250,24 +1272,28 @@ _fpowl                  push    rsi
                         dq      LTINT           ;   <
                         dq      CONDJUMP,.nextchar  ; ?JUMP[.nextchar]
                         ; done
-                        dq      PUSHNAME        ;   leave NAME address
-                        dq      EXIT
+                        dq      JUMP,.end2      ;   JUMP[.end2]
 
                         ; check if a definition matches the current NAME
-                        ; ( defptr -- bool )
+                        ; ( addr len defptr -- addr len defptr bool )
                         DEFASM  "?MATCHDEF",MATCHDEF,0
-                        CHKUNF  1
-                        mov     rax,[r15]
+                        CHKUNF  3
+                        CHKOVF  1
+                        mov     rdi,[r15+16]    ; read addr
+                        test    rdi,rdi         ; stop if it's zero
+                        jz      .false
+                        mov     rdx,[r15+8]     ; read length
+                        test    rdx,rdx         ; stop if it's zero
+                        jz      .false
+                        mov     rax,[r15]       ; read defptr
                         lea     rsi,[rax+8]     ; beginning of name field in def
-                        lea     rdi,[rbp-NAME]  ; NAME buffer
                         cld
                         ; load length from definition
                         lodsb   ; al = [rsi]+
                         and     al,0x1f ; length is low 5 bits
-                        ; compare with length in NAME field
-                        cmp     al,[rdi]
+                        ; compare with length supplied
+                        cmp     al,dl
                         jne     .false
-                        inc     rdi
                         ; same length: compare strings
                         movzx   rcx,al
                         jrcxz   .true
@@ -1275,33 +1301,43 @@ _fpowl                  push    rsi
                         jne     .false
 .true                   xor     rax,rax
                         not     rax
+                        sub     r15,8
                         mov     [r15],rax
                         NEXT
 .false                  xor     rax,rax
+                        sub     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        ; find word in NAME buffer in dictionary
-                        ; ( -- addr )
+                        ; find word in dictionary
+                        ; ( addr len -- defptr )
                         ; if not found, returns a NULL pointer
                         DEFCOL  "FIND",FINDWORD,0
                         ; get LATEST variable onto the stack
                         dq      TOLATEST,FETCH  ;   >LATEST @
-                        ; ( defptr )
+                        ; ( addr len defptr )
                         ; see if the current definition matches the
-                        ; word in NAME.
-.next                   dq      DUP,MATCHDEF    ;   DUP ?MATCHDEF
+                        ; specified word
+                        ; ( addr len defptr )
+.next                   dq      MATCHDEF        ;   ?MATCHDEF
+                        ; ( addr len defptr bool )
                         dq      CONDJUMP,.done  ;   ?JUMP[.done]
                         ; doesn't match: move to previous definition
                         dq      FETCH           ;   @
-                        ; ( defptr )
+                        ; ( addr len defptr )
                         ; check if entries are used up
                         dq      DUP,EQZEROINT   ;   DUP =0
                         dq      CONDJUMP,.done  ;   ?JUMP[.done]
                         ; nope, compare ->
                         dq      JUMP,.next      ;   JUMP[.next]
+                        ; ( addr len defptr )
+.done                   dq      ROT             ;   ROT
+                        ; ( len defptr addr )
+                        dq      ROT             ;   ROT
+                        ; ( defptr addr len )
+                        dq      DROP,DROP       ;   DROP DROP
                         ; ( defptr )
-.done                   dq      EXIT
+                        dq      EXIT
 
                         ; check BASE
                         DEFASM  "CHECKBASE",CHECKBASE,0
