@@ -198,6 +198,7 @@ fvm_divzro              ERREND  "? division by zero"
 fvm_nofpu               ERREND  "? FPU not found"
 fvm_badbase             ERRMSG  "? bad number base, reset to 10"
 fvm_notimpl             ERRMSG  "? not implemented"
+fvm_nullptr             ERREND  "? NULL pointer"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -1792,10 +1793,37 @@ _fpowl                  push    rsi
                         ; ( number bool )
                         dq      EXIT
 
+                        ; check pointer to see if it's NULL
+                        ; ( addr -- addr )
+                        DEFASM  "CHKPTR",CHKPTR,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        test    rax,rax
+                        jnz     .ok
+                        jmp     fvm_nullptr
+.ok                     NEXT
+
+                        ; get address of codeword from dictionary entry
+                        ; ( addr -- addr )
+                        DEFCOL  "CODEWORD",CODEWORD,0
+                        dq      CHKPTR          ; CHKPTR
+                        ; move to name field
+                        dq      LIT,8,ADDINT    ; 8 +
+                        ; ( addr )
+                        ; get name length
+                        dq      DUP,CHARFETCH   ; DUP C@
+                        ; ( addr len )
+                        ; add 1+len
+                        dq      ADDONE,ADDINT   ; +1 +
+                        ; add 7 and AND NOT 7
+                        dq      LIT,7,ADDINT    ; 7 +
+                        dq      LIT,7,BINNOT,BINAND ; 7 NOT AND
+                        ; finished
+                        dq      EXIT
+
                         section .rodata
 
                         align   8
 fvm_last_sysword        dq      LINKBACK
 
                         section .note.GNU-stack
-
