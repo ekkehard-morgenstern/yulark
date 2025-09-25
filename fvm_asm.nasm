@@ -1999,7 +1999,7 @@ _fpowl                  push    rsi
                         dq      DUP,CHARFETCH       ; DUP C@
                         dq      LIT,F_HIDDEN,BINOR  ; [F_HIDDEN] OR
                         ; ( flagaddr flags )
-                        dq      SWAP,STORE          ; SWAP !
+                        dq      SWAP,CHARSTORE      ; SWAP C!
                         ; ( )
                         ; enter compile mode and exit
                         dq      RBRACKET,EXIT       ; ]
