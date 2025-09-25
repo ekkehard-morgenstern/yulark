@@ -2045,6 +2045,43 @@ _fpowl                  push    rsi
                         ; enter compile mode and exit
                         dq      RBRACKET,EXIT       ; ]
 
+                        ; mark latest word definition as immediate
+                        DEFCOL  "IMMEDIATE",IMMEDIATE,F_IMMEDIATE
+                        dq      TOLATEST,FETCH      ; >LATEST @
+                        ; ( wordaddr )
+                        dq      LIT,8,ADDINT        ; 8 +
+                        dq      DUP,CHARFETCH       ; DUP C@
+                        ; ( flagaddr flags )
+                        dq      LIT,F_IMMEDIATE,BINOR ; [F_IMMEDIATE] OR
+                        ; store
+                        dq      SWAP,CHARSTORE      ; SWAP C!
+                        dq      EXIT
+
+                        ; end of compilation mode
+                        ; must be immediate so the interpreter won't
+                        ; compile it.
+                        DEFCOL  ";",SEMICOLON,F_IMMEDIATE
+                        ; store the EXIT word into the word definition
+                        ; so a word will return to the calling context
+                        ; when it is finished
+                        dq      LIT,EXIT,COMMA      ; [EXIT] COMMA
+                        ; unmark the latest word (the one currently being
+                        ; created) as hidden so that new implementation
+                        ; can be seen with FIND.
+                        dq      TOLATEST,FETCH      ; >LATEST @
+                        ; ( defaddr )
+                        dq      LIT,8,ADDINT        ; 8 +
+                        ; ( flagaddr )
+                        dq      DUP,CHARFETCH       ; DUP C@
+                        ; ( flagaddr flags )
+                        dq      LIT,F_HIDDEN        ; [F_HIDDEN]
+                        dq      BINNOT,BINAND       ; NOT AND
+                        ; ( flagaddr flags )
+                        dq      SWAP,STORE          ; SWAP !
+                        ; return to immediate mode
+                        dq      LBRACKET            ; [
+                        dq      EXIT
+
                         section .rodata
 
                         align   8
