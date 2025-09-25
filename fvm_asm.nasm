@@ -74,7 +74,7 @@
                         ; rsi - memory block
                         ; rdi - memory size
                         ; rdx - return stack size
-fvm_run                 enter   0x200,0     ; 512 bytes of local storage
+fvm_run                 enter   0x208,0     ; 512 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
@@ -2125,7 +2125,6 @@ _fpowl                  push    rsi
                         DEFCOL  "OKAY",OKAY,0
                         dq      TOFILE,FETCH        ; >FILE @
                         dq      SYSISATTY           ; SYSISATTY
-                        dq      EQZEROINT           ; =0
                         dq      CONDJUMP,.print     ; ?JUMP[.print]
                         dq      EXIT
 .print                  dq      LIT,.oktext,LIT,4   ; [.oktext] 4
