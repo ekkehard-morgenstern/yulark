@@ -27,6 +27,7 @@
                         section     .text
 
                         global      fvm_run
+                        extern      isatty
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -210,8 +211,8 @@ fvm_term                pop     rbx
 %define __NR_write      1
 
                         %macro  ERREND 1
-                        mov     rsi,2   ; STDERR
-                        lea     rdi,%%errtext
+                        mov     rdi,2   ; STDERR
+                        lea     rsi,%%errtext
 %define ERRTEXT         %1
                         %strlen cnt ERRTEXT
                         mov     rdx,cnt+1
@@ -224,8 +225,8 @@ fvm_term                pop     rbx
                         %endmacro
 
                         %macro  ERRMSG 1
-                        mov     rsi,2   ; STDERR
-                        lea     rdi,%%errtext
+                        mov     rdi,2   ; STDERR
+                        lea     rsi,%%errtext
 %define ERRTEXT         %1
                         %strlen cnt ERRTEXT
                         mov     rdx,cnt+1
@@ -1062,8 +1063,8 @@ _fpowl                  push    rsi
                         ; read bytes from a system file
                         DEFASM  "SYSREAD",SYSREAD,0
                         CHKUNF  3
-                        mov     rsi,[r15+16]    ; file handle
-                        mov     rdi,[r15+8]     ; buffer
+                        mov     rdi,[r15+16]    ; file handle
+                        mov     rsi,[r15+8]     ; buffer
                         mov     rdx,[r15]       ; count
                         add     r15,16
 %define __NR_read       0
@@ -1073,14 +1074,26 @@ _fpowl                  push    rsi
                         NEXT
 
                         ; write bytes to a system file
+                        ; ( filehnd buffer count -- count )
                         DEFASM  "SYSWRITE",SYSWRITE,0
                         CHKUNF  3
-                        mov     rsi,[r15+16]    ; file handle
-                        mov     rdi,[r15+8]     ; buffer
+                        mov     rdi,[r15+16]    ; file handle
+                        mov     rsi,[r15+8]     ; buffer
                         mov     rdx,[r15]       ; count
                         add     r15,16
                         mov     rax,__NR_write
                         syscall
+                        mov     [r15],rax
+                        NEXT
+
+                        ; test whether the specified filehandle
+                        ; points to a TTY
+                        ; ( filehnd -- bool )
+                        DEFASM  "SYSISATTY",SYSISATTY,0
+                        CHKUNF 1
+                        mov     rdi,[r15]
+                        xor     al,al
+                        call    isatty
                         mov     [r15],rax
                         NEXT
 
@@ -1100,7 +1113,8 @@ _fpowl                  push    rsi
                         dq      EXIT
 
                         ; type text to output
-                        DEFCOL  "TYPE",TYPEOUT,0    ; ( addr n )
+                        ; ( addr n )
+                        DEFCOL  "TYPE",TYPEOUT,0
                         dq      TOOUT       ; >OUT
                         dq      FETCH       ; @
                         ; ( addr n ofile )
@@ -2081,6 +2095,19 @@ _fpowl                  push    rsi
                         ; return to immediate mode
                         dq      LBRACKET            ; [
                         dq      EXIT
+
+                        ; if the input device is a TTY, output "ok"
+                        DEFCOL  "OKAY",OKAY,0
+                        dq      TOFILE,FETCH        ; >FILE @
+                        dq      SYSISATTY           ; SYSISATTY
+                        dq      EQZEROINT           ; =0
+                        dq      CONDJUMP,.print     ; ?JUMP[.print]
+                        dq      EXIT
+.print                  dq      LIT,.oktext,LIT,3   ; [.oktext] 3
+                        dq      TYPEOUT             ; TYPE
+                        dq      EXIT
+.oktext                 db      "ok",10
+                        align   8
 
                         section .rodata
 
