@@ -65,8 +65,7 @@
                         ; name area). this also means that the program will
                         ; crash here if the address is invalid.
                         ; see also the definition of DEFASM/DEFCOL below.
-                        mov     rax,[r12]   ; JUMP [WA]
-                        jmp     rax
+                        jmp     qword [r12]   ; JUMP [WA]
                         %endmacro
 
                         ; code is ideally aligned on 32-byte boundary
@@ -145,8 +144,15 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; push QUIT on the return stack so the last EXIT
                         ; will execute that
                         sub     r14,8
-                        lea     rax,QUIT
+                        lea     rax,_QUIT
                         mov     [r14],rax
+
+                        section .rodata
+                        global  _QUIT
+                        align   8
+_QUIT                   dq      QUIT
+
+                        section .text
 
                         ; store RSP in the RSPRESET field
                         mov     [rbp-RSPRESET],r14
@@ -164,7 +170,13 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         mov     [rbp-STKLWR],rax
 
                         ; set up WP
-                        lea     r13,INTERPRET
+                        lea     r13,_INTERPRET
+                        section .rodata
+                        global  _INTERPRET
+                        align   8
+_INTERPRET              dq      INTERPRET,EXIT
+
+                        section .text
 
                         ; set up LATEST
                         mov     rax,[fvm_last_sysword]
@@ -1172,7 +1184,9 @@ _fpowl                  push    rsi
                         test    rdx,rdx
                         jz      .nojump
                         mov     r13,[r13]
-.nojump                 NEXT
+                        NEXT
+.nojump                 add     r13,8
+                        NEXT
 
                         ; reads an unsigned char from specified address
                         ; and places it as a word on the stack
@@ -2134,8 +2148,7 @@ _fpowl                  push    rsi
                         ;   the WP register (r13) is not changed
                         ; thus, we can jump directly to the assembly routine
                         ; for both cases.
-                        mov     rax,[rax]
-                        jmp     rax
+                        jmp     qword [rax]
 
                         ; ( n1 n2 -- n1 n2 n1 n2 )
                         DEFCOL  "2DUP",TWODUP,0
