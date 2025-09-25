@@ -54,8 +54,16 @@
 
                         ; terminates every FORTH word written in machine code
                         %macro  NEXT 0
+                        ; read the next word address from the word pointer
+                        ; then increment the word pointer
                         mov     r12,[r13]   ; WA := [WP]+
                         add     r13,8
+                        ; load the "codeword" entry from the word definition
+                        ; (which is a runnable piece of assembly code, whose
+                        ; address is stored just beneath the word definition's
+                        ; name area). this also means that the program will
+                        ; crash here if the address is invalid.
+                        ; see also the definition of DEFASM/DEFCOL below.
                         mov     rax,[r12]   ; JUMP [WA]
                         jmp     rax
                         %endmacro
@@ -74,6 +82,12 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
+                        ; ebp-0x180     RSP reset address
+%define RSPRESET        0x180
+                        ; rbp-0x188     system memory size (read-only)
+%define MEMSIZE         0x188
+                        ; rbp-0x190     system memory address (read-only)
+%define MEMADDR         0x190
                         ; rbp-0x198     is in immediate mode
 %define ISIMMED         0x198
                         ; rbp-0x1a0     is in compile mode
@@ -110,15 +124,36 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         push    rbx
 
                         ; set up RSP
+                        ; in the beginning, it points just beyond the end of
+                        ; the available memory area.
                         mov     r14,rsi
                         add     r14,rdi
 
+                        ; save the memory area's address and size
+                        mov     [rbp-MEMADDR],rsi
+                        mov     [rbp-MEMSIZE],rdi
+
                         ; set up PSP
+                        ; create the parameter stack pointer by subtracting the
+                        ; return stack size from the return stack pointer.
+                        ; this will also become the parameter stack's upper
+                        ; limit.
                         mov     r15,r14
                         sub     r15,rdx
                         mov     [rbp-STKUPR],r15
 
+                        ; push QUIT on the return stack so the last EXIT
+                        ; will execute that
+                        sub     r14,8
+                        lea     rax,QUIT
+                        mov     [r14],rax
+
+                        ; store RSP in the RSPRESET field
+                        mov     [rbp-RSPRESET],r14
+
                         ; set up DP
+                        ; the dictionary pointer grows forward in memory and
+                        ; simply points to be beginning of the memory area.
                         mov     rbx,rsi
 
                         ; the middle between PSP and DP is the stack lower bound
@@ -150,6 +185,12 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         ; set up BASE
                         mov     rax,10
                         mov     [rbp-BASE],rax
+
+                        ; set immediate mode
+                        xor     rax,rax
+                        mov     [rbp-ISCOMP],rax
+                        not     rax
+                        mov     [rbp-ISIMMED],rax
 
                         ; go to NEXT
                         NEXT
