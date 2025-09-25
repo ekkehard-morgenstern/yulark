@@ -1258,6 +1258,8 @@ _fpowl                  push    rsi
                         NEXT
 
                         ; read a character from the PAD input
+                        ; ( -- char )
+                        ; returns -1 on error or EOF
                         DEFCOL  "PADGETCH",PADGETCH,0
                         ; check if input position is beyond maximum
 .nextchar               dq      TOIN,FETCH      ;   >IN @
@@ -1277,18 +1279,23 @@ _fpowl                  push    rsi
                         ; fetch a character at the input position
                         ; then advance input position
 .cont                   dq      TOIN,FETCH      ;   >IN @
-                        dq      PAD,ADDINT      ;   PAD +
+                        dq      PUSHPAD,ADDINT  ;   PAD +
                         dq      CHARFETCH       ;   C@
                         dq      TOIN,INCR       ;   >IN INCR
                         ; ( char )
                         dq      EXIT
 
                         DEFCOL  "SKIPSPC",SKIPSPC,0
-.nextchar               dq      PADGETCH,DUP    ;   PADGETCH
+.nextchar               dq      PADGETCH         ;  PADGETCH
+                        ; ( char )
                         dq      DUP,LIT,-1,EQINT ;  DUP -1 =
                         dq      CONDJUMP,.finish ;  ?JUMP[.finish]
                         dq      DUP,ISSPC       ;   DUP ?SPC
                         dq      CONDJUMP,.finish2 ;  ?JUMP[.finish2]
+                        ; ( char )
+                        ; drop character
+                        dq      DROP            ;   DROP
+                        ; read next
                         dq      JUMP,.nextchar  ;   JUMP[.nextchar]
                         ; ( char )
                         ; decrement character position for PAD
