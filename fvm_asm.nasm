@@ -245,6 +245,7 @@ fvm_nofpu               ERREND  "? FPU not found"
 fvm_badbase             ERRMSG  "? bad number base, reset to 10"
 fvm_notimpl             ERRMSG  "? not implemented"
 fvm_nullptr             ERREND  "? NULL pointer"
+fvm_unknown             ERREND  "? unknown entity in stream"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -943,7 +944,7 @@ _fpowl                  push    rsi
                         dq      EXIT
                         ; ( x y )
                         ; x is 0, 0^y is always zero
-.zero                   dq      DROP,DROP   ; DROP DROP
+.zero                   dq      TWODROP     ; 2DROP
                         dq      LIT,0.0     ; 0.0
                         dq      EXIT
 
@@ -1120,7 +1121,7 @@ _fpowl                  push    rsi
                         ; ( addr n ofile )
                         ; ( n ofile addr ) after 1st ROT
                         ; ( ofile addr n ) after 2nd ROT
-                        dq      ROT,ROT     ; ROT ROT
+                        dq      TWOROT      ; 2ROT
                         dq      SYSWRITE
                         dq      DROP        ; DROP
                         dq      EXIT
@@ -1255,7 +1256,6 @@ _fpowl                  push    rsi
                         dq      PADREAD         ;   PADREAD
                         ; check if the block size is zero
                         dq      TOMAX,FETCH     ;   >MAX @
-                        dq      NEZEROINT       ;   <>0
                         ; if not, skip the following block
                         dq      CONDJUMP,.cont  ;   ?JUMP[.cont]
                         ; otherwise, push a -1 and exit
@@ -1333,7 +1333,7 @@ _fpowl                  push    rsi
                         ; ( addr len )
                         ; length is zero: drop address and length
                         ; and leave zero values instead
-.end3                   dq      DROP,DROP       ;   DROP DROP
+.end3                   dq      TWODROP         ;   2DROP
                         dq      LIT,0,LIT,0     ;   0 0
                         dq      EXIT
                         ; ( char )
@@ -1404,7 +1404,7 @@ _fpowl                  push    rsi
                         ; ( addr len )
                         dq      EXIT
                         ; ( addr len )
-.error                  dq      DROP,DROP           ; DROP DROP
+.error                  dq      TWODROP             ; 2DROP
                         ; Since this occurs at the end of file, we cannot
                         ; sensibly output an error message here.
                         ; Thus, we simply exit FORTH.
@@ -1439,15 +1439,12 @@ _fpowl                  push    rsi
                         ; ( addr len defptr char )
                         dq      LIT,F_HIDDEN,BINAND ; [F_HIDDEN] AND
                         ; if set, skip the match
-                        dq      NEZEROINT           ; <>0
                         dq      CONDJUMP,.skipmatch ; ?JUMP[.skipmatch]
                         ; acceptable
                         ; ( addr len defptr )
-                        dq      ROT             ;   ROT
-                        ; ( len defptr addr )
-                        dq      ROT             ;   ROT
+                        dq      TWOROT          ;   2ROT
                         ; ( defptr addr len )
-                        dq      DROP,DROP       ;   DROP DROP
+                        dq      TWODROP         ;   2DROP
                         ; ( defptr )
                         dq      EXIT
 
@@ -1664,7 +1661,7 @@ _fpowl                  push    rsi
                         ; not digit: back up one char
                         ; ( value addr len char digit )
                         ; get rid of digit and char
-.finish2                dq      DROP,DROP           ; DROP DROP
+.finish2                dq      TWODROP             ; 2DROP
                         ; ( value addr len )
                         ; go back one character
                         dq      BACKNCONV           ; BACKNCONV
@@ -1744,7 +1741,7 @@ _fpowl                  push    rsi
                         ; ( sign addr len numdigits value )
                         ; conversion failure:
                         ; get rid of value and numdigits
-.convfail               dq      DROP,DROP           ; DROP DROP
+.convfail               dq      TWODROP             ; 2DROP
                         ; ( sign addr len )
                         ; rotate to get the sign in front then drop it
                         dq      ROT
@@ -1849,7 +1846,7 @@ _fpowl                  push    rsi
                         ; drop the character, length and address
 .convfail               dq      DROP                ; DROP
                         ; ( addr len )
-.convfail3              dq      DROP,DROP           ; DROP DROP
+.convfail3              dq      TWODROP             ; 2DROP
                         ; ( )
                         ; push 0 0 as number/bool
 .convfail4              dq      LIT,0,LIT,0         ; 0 0
@@ -1862,7 +1859,7 @@ _fpowl                  push    rsi
                         ; integer case
                         ; ( addr len char )
                         ; drop the character, length and address
-.integer                dq      DROP,DROP,DROP      ; DROP DROP DROP
+.integer                dq      TWODROP,DROP        ; 2DROP DROP
                         ; ( )
                         ; push number and true
                         dq      TOMANTISSA,FETCH    ; >MANTISSA @
@@ -1923,8 +1920,8 @@ _fpowl                  push    rsi
                         dq      JUMP,.floatingpoint2 ; JUMP[.floatingpoint2]
                         ; ( addr len char )
                         ; drop fields
-.floatingpoint          dq      DROP
-.floatingpoint2         dq      DROP,DROP
+.floatingpoint          dq      DROP                ; DROP
+.floatingpoint2         dq      TWODROP             ; 2DROP
                         ; ( )
                         ; convert to real number and push it and the truth value
                         dq      GETREAL
@@ -2039,6 +2036,14 @@ _fpowl                  push    rsi
                         mov     [rbp-ISCOMP],rax
                         NEXT
 
+                        ; returns true if we're in immediate mode
+                        DEFASM  "?IMMEDIATE",INIMMEDIATE,0
+                        CHKOVF  1
+                        mov     rax,[rbp-ISIMMED]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; begin word compilation
                         DEFCOL  ":",COLON,0
                         dq      CREATE      ; CREATE
@@ -2103,11 +2108,126 @@ _fpowl                  push    rsi
                         dq      EQZEROINT           ; =0
                         dq      CONDJUMP,.print     ; ?JUMP[.print]
                         dq      EXIT
-.print                  dq      LIT,.oktext,LIT,3   ; [.oktext] 3
+.print                  dq      LIT,.oktext,LIT,4   ; [.oktext] 4
                         dq      TYPEOUT             ; TYPE
                         dq      EXIT
-.oktext                 db      "ok",10
+.oktext                 db      " ok",10
                         align   8
+
+                        ; gets the codeword address from the stack
+                        ; and then executes that word
+                        ; ( cfa )
+                        DEFASM  "RUNCODE",RUNCODE,0
+                        CHKUNF  1
+                        ; get CFA (the address containing the codeword address)
+                        mov     rax,[r15]
+                        add     r15,8
+                        ; load that into the WA register (r12)
+                        mov     r12,rax
+                        ; if it's a DOCOL routine:
+                        ;   DOCOL will preserve the WP register (r13) on the
+                        ;   return stack and then begin processing the word
+                        ;   that is pointed to by WA (r12), the EXIT at the end
+                        ;   will return to the caller of RUNCODE.
+                        ; if it's an assembly subroutine:
+                        ;   these do all end with NEXT, thus processing will
+                        ;   continue in the context of the caller as long as
+                        ;   the WP register (r13) is not changed
+                        ; thus, we can jump directly to the assembly routine
+                        ; for both cases.
+                        mov     rax,[rax]
+                        jmp     rax
+
+                        ; ( n1 n2 -- n1 n2 n1 n2 )
+                        DEFCOL  "2DUP",TWODUP,0
+                        dq      OVER,OVER       ; OVER OVER
+                        dq      EXIT
+
+                        ; ( n1 n2 -- )
+                        DEFCOL  "2DROP",TWODROP,0
+                        dq      DROP,DROP       ; DROP DROP
+                        dq      EXIT
+
+                        ; ( n1 n2 n3 -- n3 n1 n2 )
+                        DEFCOL  "2ROT",TWOROT,0
+                        dq      ROT,ROT         ; ROT ROT
+                        dq      EXIT
+
+                        ; finally, the interpreter
+                        ; reads words and runs them until EOF occurs
+                        DEFCOL  "INTERPRET",INTERPRET,0
+                        ; read next word from input, exit FORTH at EOF
+.nextword               dq      GETWORD             ; WORD
+                        ; ( addr len )
+                        ; duplicate both fields
+                        dq      TWODUP              ; 2DUP
+                        ; ( addr len addr len )
+                        ; find it in the dictionary
+                        dq      FINDWORD            ; FIND
+                        ; ( addr len defptr )
+                        ; if not, we get a 0
+                        dq      DUP,EQZEROINT       ; DUP 0=
+                        dq      CONDJUMP,.notfound  ; ?JUMP[.notfound]
+                        ; ( addr len defptr )
+                        ; found, get rid of the addr/len fields
+                        dq      TWOROT              ; 2ROT
+                        ; ( defptr addr len )
+                        dq      TWODROP             ; 2DROP
+                        ; ( defptr )
+                        ; check if we're in immediate mode
+                        dq      INIMMEDIATE         ; ?IMMEDIATE
+                        dq      CONDJUMP,.immediate ; ?JUMP[.immediate]
+                        ; ( defptr )
+                        ; we're in compile mode, check to see if the word
+                        ; has an F_IMMEDIATE mark on it. if so, act as if
+                        ; we're in immediate mode
+                        dq      DUP,LIT,8,ADDINT    ; DUP 8 +
+                        dq      CHARFETCH           ; C@
+                        dq      LIT,F_IMMEDIATE,BINAND ; [F_IMMEDIATE] AND
+                        dq      CONDJUMP,.immediate
+                        ; ( defptr )
+                        ; we're in compile mode, get code addr and store it
+                        dq      TOCFA,COMMA         ; >CFA ,
+                        ; ( )
+                        ; go to next word
+                        dq      JUMP,.nextword      ; JUMP[.nextword]
+                        ; in immediate mode: get code word address and run
+.immediate              dq      TOCFA,RUNCODE       ; >CFA RUNCODE
+                        ; we'll end up here when the word called EXIT (DOCOL)
+                        ; or NEXT (assembly).
+                        ; so, we'll jump back to the word processing
+                        dq      JUMP,.nextword
+                        ; the word we searched for wasn't found
+                        ; ( addr len defptr )
+                        ; drop the NULL word
+.notfound               dq      DROP            ; DROP
+                        ; ( addr len )
+                        ; see if it's a number perhaps
+                        dq      MATCHNUM        ; ?MATCHNUM
+                        ; ( number bool )
+                        dq      CONDJUMP,.number ; ?JUMP[.number]
+                        ; drop number field (0)
+                        dq      DROP
+                        ; not number: it's an error
+                        dq      JMPSYS,fvm_unknown ; JMPSYS[.fvm_unknown]
+                        ; a number
+                        ; ( number )
+                        ; check if we're in immediate mode
+.number                 dq      INIMMEDIATE         ; ?IMMEDIATE
+                        dq      CONDJUMP,.numimmed  ; ?JUMP[.numimmed]
+                        ; not immediate mode: compile number
+                        ; for that, the address of LIT must be stored,
+                        ; then the provided number
+                        dq      LIT,LIT,COMMA       ; [LIT] ,
+                        dq      COMMA               ; ,
+                        ; ( )
+                        ; back to word processing
+                        dq      JUMP,.nextword
+                        ; ( number )
+                        ; in immediate mode, the number is pushed onto the
+                        ; stack (which it already is), so we can jump right
+                        ; back into word processing
+.numimmed               dq      JUMP,.nextword
 
                         section .rodata
 
