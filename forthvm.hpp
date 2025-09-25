@@ -62,7 +62,7 @@ public:
     }
 };
 
-extern "C" void fvm_run( void* mem, size_t siz, size_t rsz, void* initwa );
+extern "C" void fvm_run( void* mem, size_t siz, size_t rsz );
 
 #define FORTHVM_MEMSIZE 131072U     // 128K
 #define FVM_RETSTKSIZE  8192U       // 8K

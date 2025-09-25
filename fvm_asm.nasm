@@ -75,7 +75,6 @@
                         ; rsi - memory block
                         ; rdi - memory size
                         ; rdx - return stack size
-                        ; rcx - initial word address
 fvm_run                 enter   0x200,0     ; 512 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
@@ -165,7 +164,7 @@ fvm_run                 enter   0x200,0     ; 512 bytes of local storage
                         mov     [rbp-STKLWR],rax
 
                         ; set up WP
-                        mov     r13,rcx
+                        lea     r13,INTERPRET
 
                         ; set up LATEST
                         mov     rax,[fvm_last_sysword]
