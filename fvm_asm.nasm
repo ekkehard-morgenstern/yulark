@@ -245,7 +245,8 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         NEXT
 
 %define LINKBACK        0
-%define IMMEDIATE       0x20    ; immediate mode word, always executed
+%define F_IMMEDIATE     0x80    ; immediate mode word, always executed
+%define F_HIDDEN        0x20    ; hidden word (don't return with FIND)
 
                         ; define a colon definition
                         ; parameters: name, label, flags
@@ -1228,11 +1229,19 @@ _fpowl                  push    rsi
 .finish                 dq      DROP            ;   DROP
                         dq      EXIT
 
+                        ; jump to specified system routine
+                        ; ( addr -- )
+                        DEFASM  "JMPSYS",JMPSYS,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        add     r15,8
+                        jmp     rax
+
                         ; read a word from input into NAME buffer
                         ; returns address and length
                         ; ( -- addr len )
                         ; if the result would be empty, return 0 0
-                        DEFCOL  "WORD",READWORD,0
+                        DEFCOL  "?WORD",READWORD,0
                         ; clear name length
                         dq      LIT,0           ;   0
                         dq      PUSHNAME        ;   NAME
@@ -1329,6 +1338,23 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
+                        ; forcibly read the next word
+                        ; if none exists, exit FORTH
+                        ; otherwise, leave address and length
+                        ; ( -- addr len )
+                        DEFCOL  "WORD",GETWORD,0
+                        dq      READWORD            ; ?WORD
+                        dq      DUP,EQZEROINT       ; DUP =0
+                        dq      CONDJUMP,.error     ; ?JUMP[.error]
+                        ; ( addr len )
+                        dq      EXIT
+                        ; ( addr len )
+.error                  dq      DROP,DROP           ; DROP DROP
+                        ; Since this occurs at the end of file, we cannot
+                        ; sensibly output an error message here.
+                        ; Thus, we simply exit FORTH.
+                        dq      JMPSYS,fvm_term     ; JMPSYS[fvm_term]
+
                         ; find word in dictionary
                         ; ( addr len -- defptr )
                         ; if not found, returns a NULL pointer
@@ -1343,7 +1369,7 @@ _fpowl                  push    rsi
                         ; ( addr len defptr bool )
                         dq      CONDJUMP,.done  ;   ?JUMP[.done]
                         ; doesn't match: move to previous definition
-                        dq      FETCH           ;   @
+.skipmatch              dq      FETCH           ;   @
                         ; ( addr len defptr )
                         ; check if entries are used up
                         dq      DUP,EQZEROINT   ;   DUP =0
@@ -1351,7 +1377,18 @@ _fpowl                  push    rsi
                         ; nope, compare ->
                         dq      JUMP,.next      ;   JUMP[.next]
                         ; ( addr len defptr )
-.done                   dq      ROT             ;   ROT
+                        ; apparently, we found the word
+                        ; if it is has its hidden flag set, we didn't
+.done                   dq      DUP,LIT,8,ADDINT ;  DUP 8 +
+                        dq      CHARFETCH       ;   C@
+                        ; ( addr len defptr char )
+                        dq      LIT,F_HIDDEN,BINAND ; [F_HIDDEN] AND
+                        ; if set, skip the match
+                        dq      NEZEROINT           ; <>0
+                        dq      CONDJUMP,.skipmatch ; ?JUMP[.skipmatch]
+                        ; acceptable
+                        ; ( addr len defptr )
+                        dq      ROT             ;   ROT
                         ; ( len defptr addr )
                         dq      ROT             ;   ROT
                         ; ( defptr addr len )
@@ -1872,7 +1909,7 @@ _fpowl                  push    rsi
                         ; create a new dictionary entry with specified name
                         ; and update the backwards link, leave the value of HERE
                         ; ( addr len -- here )
-                        DEFASM  "CREATE",CREATE,0
+                        DEFASM  "_CREATE",_CREATE,0
                         CHKUNF  2
                         mov     rsi,[r15+8]
                         mov     rcx,[r15]
@@ -1899,6 +1936,19 @@ _fpowl                  push    rsi
                         mov     [r15],rbx   ; leave HERE on stack
                         NEXT
 
+                        ; reads the next word in the input stream
+                        ; then creates a new dictionary entry with it
+                        ; and leaves its address on the stack.
+                        ; ( -- addr )
+                        DEFCOL  "CREATE",CREATE,0
+                        ; make sure we read a word, exit FORTH if we don't (EOF)
+                        dq      GETWORD         ; GETWORD
+                        ; ( nameaddr len )
+                        ; call the internal create function and exit
+                        dq      _CREATE         ; _CREATE
+                        ; ( defaddr )
+                        dq      EXIT
+
                         ; store specified data word to the position
                         ; indicated by the dictionary pointer and update it
                         ; ( data -- )
@@ -1912,11 +1962,47 @@ _fpowl                  push    rsi
                         add     r15,8
                         NEXT
 
+                        ; leave compile mode
+                        ; (in the interpreter, it will cause the following
+                        ; words to be executed rather than compiled)
+                        ; it must be marked immediate, otherwise the compiler
+                        ; would compile rather than execute it.
+                        DEFASM  "[",LBRACKET,F_IMMEDIATE
+                        xor     rax,rax
+                        mov     [rbp-ISCOMP],rax
+                        not     rax
+                        mov     [rbp-ISIMMED],rax
+                        NEXT
+
+                        ; enter compile mode
+                        ; (in the interpreter, it will cause the following
+                        ; words to be compiled rather than executed)
+                        DEFASM  "]",RBRACKET,0
+                        xor     rax,rax
+                        mov     [rbp-ISIMMED],rax
+                        not     rax
+                        mov     [rbp-ISCOMP],rax
+                        NEXT
+
                         ; begin word compilation
                         DEFCOL  ":",COLON,0
-                        dq      READWORD    ; read next word
-                        ; ... to be continued ...
-                        dq      EXIT
+                        dq      CREATE      ; CREATE
+                        ; ( defaddr )
+                        ; append DOCOL
+                        dq      LIT,fvm_docol,COMMA     ; [fvm_docol] COMMA
+                        ; mark the latest word (the one just created)
+                        ; as hidden so that new implementations of one word
+                        ; can call the previous definition.
+                        ; ( defaddr )
+                        dq      LIT,8,ADDINT        ; 8 +
+                        ; ( flagaddr )
+                        dq      DUP,CHARFETCH       ; DUP C@
+                        dq      LIT,F_HIDDEN,BINOR  ; [F_HIDDEN] OR
+                        ; ( flagaddr flags )
+                        dq      SWAP,STORE          ; SWAP !
+                        ; ( )
+                        ; enter compile mode and exit
+                        dq      RBRACKET,EXIT       ; ]
 
                         section .rodata
 
