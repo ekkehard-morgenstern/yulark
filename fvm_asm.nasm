@@ -81,7 +81,9 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
-                        ; ebp-0x180     RSP reset address
+                        ; rbp-0x160     buffer for . subroutine
+%define DOTBUF          0x160
+                        ; rbp-0x180     RSP reset address
 %define RSPRESET        0x180
                         ; rbp-0x188     system memory size (read-only)
 %define MEMSIZE         0x188
@@ -412,12 +414,32 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        DEFASM  "U/",UDIVINT,0
+                        CHKUNF  2
+                        CHKZRO
+                        mov     rax,[r15+8]
+                        xor     rdx,rdx         ; zero-extend into rdx
+                        div     qword [r15]
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         DEFASM  "*/",MULDIVINT,0
                         CHKUNF  3
                         CHKZRO
                         mov     rax,[r15+16]
                         imul    qword [r15+8]
                         idiv    qword [r15]
+                        add     r15,16
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "U*/",UMULDIVINT,0
+                        CHKUNF  3
+                        CHKZRO
+                        mov     rax,[r15+16]
+                        mul     qword [r15+8]
+                        div     qword [r15]
                         add     r15,16
                         mov     [r15],rax
                         NEXT
@@ -432,12 +454,33 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rdx
                         NEXT
 
+                        ; ( u1 u2 -- result remainder )
+                        DEFASM  "U/MOD",UDIVMODINT,0
+                        CHKUNF  2
+                        CHKZRO
+                        mov     rax,[r15+8]
+                        xor     rdx,rdx         ; zero-extend into rdx
+                        div     qword [r15]
+                        mov     [r15+8],rax
+                        mov     [r15],rdx
+                        NEXT
+
                         DEFASM  "MOD",MODINT,0
                         CHKUNF  2
                         CHKZRO
                         mov     rax,[r15+8]
                         cqo                     ; sign-extend into rdx
                         idiv    qword [r15]
+                        add     r15,8
+                        mov     [r15],rdx
+                        NEXT
+
+                        DEFASM  "UMOD",UMODINT,0
+                        CHKUNF  2
+                        CHKZRO
+                        mov     rax,[r15+8]
+                        xor     rdx,rdx         ; zero-extend into rdx
+                        div     qword [r15]
                         add     r15,8
                         mov     [r15],rdx
                         NEXT
@@ -465,6 +508,15 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     rax,[r15]
                         cmp     rax,0
                         setg    al
+                        movsx   rax,al
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "U>0",UGTZEROINT,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        cmp     rax,0
+                        seta    al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -506,11 +558,31 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        DEFASM  "U<",ULTINT,0
+                        CHKUNF  2
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setb    al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         DEFASM  "<=",LEINT,0
                         CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setle   al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "U<=",ULEINT,0
+                        CHKUNF  2
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setbe   al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -526,11 +598,31 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        DEFASM  "U>",UGTINT,0
+                        CHKUNF  2
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        seta    al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         DEFASM  ">=",GEINT,0
                         CHKUNF  2
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setge   al
+                        movsx   rax,al
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "U>=",UGEINT,0
+                        CHKUNF  2
+                        mov     rax,[r15+8]
+                        cmp     rax,[r15]
+                        setae   al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -1039,6 +1131,14 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
+                        ; returns the address of the DOT buffer
+                        DEFASM  "DOT",PUSHDOT,0
+                        CHKOVF  1
+                        lea     rax,[rbp-DOTBUF]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; returns the address of the MANTISSA variable
                         DEFASM  ">MANTISSA",TOMANTISSA,0
                         CHKOVF  1
@@ -1327,6 +1427,114 @@ _fpowl                  push    rsi
                         mov     rax,[r13]
                         add     r13,8
                         jmp     rax
+
+                        ; this writes a character to the DOT buffer
+                        ; ( char )
+                        DEFCOL  ">DOT",TODOT,0
+                        ; load length field in DOT buffer to see
+                        ; if it's 31 or greater
+                        dq      PUSHDOT,CHARFETCH       ; DOT C@
+                        dq      LIT,31,GEINT            ; 31 >=
+                        dq      CONDJUMP,.dontstore     ; ?JUMP[.dontstore]
+                        ; still have room
+                        ; increment length by one
+                        dq      PUSHDOT,CINCR           ; DOT CINCR
+                        ; load length, compute address for char
+                        dq      PUSHDOT,CHARFETCH       ; DOT C@
+                        dq      PUSHDOT,ADDINT          ; DOT +
+                        ; ( char addr )
+                        ; store character
+                        dq      CHARSTORE               ; C!
+                        ; done
+                        dq      EXIT
+                        ; don't store character
+.dontstore              dq      DROP,EXIT
+
+                        ; print the contents of the dot buffer
+                        DEFCOL  "PRINTDOT",PRINTDOT,0
+                        dq      PUSHDOT,DUP,CHARFETCH   ; DOT DUP C@
+                        ; ( addr len )
+                        dq      TYPEOUT,EXIT
+
+                        ; this writes an unsigned integer to the DOT
+                        ; buffer without clearing it
+                        ; ( n -- )
+                        DEFCOL  "U>DOT",UTODOT,0
+                        ; check if the number is zero
+                        dq      DUP,CONDJUMP,.notzero   ; DUP ?JUMP[.notzero]
+                        ; it is zero: output zero digit and stop
+                        dq      DROP,LIT,'0',TODOT      ; DROP '0' >DOT
+                        dq      EXIT
+                        ; recursion: number >= BASE, call myself with number
+                        ; divided by BASE
+                        ; ( n )
+.recurse                dq      PUSHBASE,FETCH,UDIVINT  ; >BASE @ U/
+                        dq      UTODOT                  ; U>DOT
+                        ; ( )
+                        ; the number has been written: done
+                        dq      EXIT
+                        ; ( n )
+                        ; check if the number is greater or equal to BASE
+.notzero                dq      DUP,PUSHBASE,FETCH,GEINT ; DUP >BASE @ >=
+                        dq      CONDJUMP,.recurse      ; ?JUMP[.recurse]
+                        ; ( n )
+                        ; the number will be in the range 0..BASE-1
+                        ; check if it's greater than 9
+                        dq      DUP,LIT,9,GTINT     ; DUP 9 >
+                        dq      CONDJUMP,.nondec    ; ?JUMP[.nondec]
+                        ; otherwise, it's in decimal range
+                        dq      LIT,'0',ADDINT      ; '0' +
+                        dq      TODOT               ; >DOT
+                        ; done
+                        dq      EXIT
+                        ; not decimal
+.nondec                 dq      LIT,10,SUBINT       ; 10 -
+                        dq      LIT,'A',ADDINT      ; 'A' +
+                        dq      TODOT               ; >DOT
+                        ; done
+                        dq      EXIT
+
+                        ; this prints an unsigned integer to the
+                        ; currently selected output device, using BASE
+                        ; ( n -- )
+                        DEFCOL  "U.",UDOT,0
+                        ; ( n )
+                        ; clear length field in DOT buffer
+                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
+                        ; store number in buffer
+                        dq      UTODOT                  ; U>DOT
+                        ; ( )
+                        ; output buffer
+                        dq      PRINTDOT
+                        ; output final blank
+                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
+                        dq      LIT,' ',TODOT           ; ' ' >DOT
+                        dq      PRINTDOT
+                        dq      EXIT
+
+                        ; this prints an integer to the currently
+                        ; selected output device, using BASE
+                        ; ( n -- )
+                        DEFCOL  ".",DOT,0
+                        ; ( n )
+                        ; clear length field in DOT buffer
+                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
+                        ; test number for negativity
+                        ; ( n )
+                        dq      DUP,LTZEROINT,BINNOT ; DUP <0 NOT
+                        dq      CONDJUMP,.output     ; ?JUMP[.output]
+                        ; negative, store a minus sign
+                        dq      LIT,'-',TODOT       ; '-' >DOT
+                        ; output number to buffer
+.output                 dq      UTODOT                  ; U>DOT
+                        ; ( )
+                        ; output buffer
+                        dq      PRINTDOT
+                        ; output final blank
+                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
+                        dq      LIT,' ',TODOT           ; ' ' >DOT
+                        dq      PRINTDOT
+                        dq      EXIT
 
                         ; read a word from input into NAME buffer
                         ; returns address and length
