@@ -1305,11 +1305,12 @@ _fpowl                  push    rsi
                         dq      EXIT
 
                         ; jump to specified system routine
-                        ; ( addr -- )
+                        ; the address has to be specified in the word
+                        ; after JMPSYS
+                        ; ( -- )
                         DEFASM  "JMPSYS",JMPSYS,0
-                        CHKUNF  1
-                        mov     rax,[r15]
-                        add     r15,8
+                        mov     rax,[r13]
+                        add     r13,8
                         jmp     rax
 
                         ; read a word from input into NAME buffer
