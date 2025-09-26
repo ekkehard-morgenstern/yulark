@@ -174,7 +174,7 @@ _QUIT                   dq      QUIT
                         section .rodata
                         global  _INTERPRET
                         align   8
-_INTERPRET              dq      INTERPRET,EXIT
+_INTERPRET              dq      FPUINIT,INTERPRET,EXIT
 
                         section .text
 
@@ -561,11 +561,13 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         neg     qword [r15]
                         NEXT
 
+                        ; ( n -- n )
                         DEFASM  "NOT",BINNOT,0
                         CHKUNF  1
                         not     qword [r15]
                         NEXT
 
+                        ; ( n1 n2 -- n )
                         DEFASM  "AND",BINAND,0
                         CHKUNF  2
                         mov     rax,[r15]
@@ -573,6 +575,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         and     [r15],rax
                         NEXT
 
+                        ; ( n1 n2 -- n )
                         DEFASM  "OR",BINOR,0
                         CHKUNF  2
                         mov     rax,[r15]
@@ -580,6 +583,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         or      [r15],rax
                         NEXT
 
+                        ; ( n1 n2 -- n )
                         DEFASM  "XOR",BINXOR,0
                         CHKUNF  2
                         mov     rax,[r15]
@@ -587,6 +591,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         xor     [r15],rax
                         NEXT
 
+                        ; ( n1 n2 -- n )
                         DEFASM  "NAND",BINNAND,0
                         CHKUNF  2
                         mov     rax,[r15]
@@ -595,6 +600,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         not     qword [r15]
                         NEXT
 
+                        ; ( n1 n2 -- n )
                         DEFASM  "NOR",BINNOR,0
                         CHKUNF  2
                         mov     rax,[r15]
@@ -603,6 +609,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         not     qword [r15]
                         NEXT
 
+                        ; ( n1 n2 -- n )
                         DEFASM  "XNOR",BINXNOR,0
                         CHKUNF  2
                         mov     rax,[r15]
@@ -611,6 +618,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         not     qword [r15]
                         NEXT
 
+                        ; ( addr -- data )
                         DEFASM  "@",FETCH,0
                         CHKUNF  1
                         mov     rax,[r15]
@@ -618,6 +626,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         mov     [r15],rax
                         NEXT
 
+                        ; ( data addr -- )
                         DEFASM  "!",STORE,0
                         CHKUNF  2
                         mov     rdx,[r15+8]
@@ -1115,7 +1124,9 @@ _fpowl                  push    rsi
                         dq      FETCH       ; @
                         dq      PUSHPAD     ; PAD
                         dq      LIT,256     ; 256
+                        ; ( pfile padaddr 256 )
                         dq      SYSREAD     ; SYSREAD
+                        ; ( retcode )
                         dq      ERR2ZERO    ; ?ERR0
                         dq      TOMAX       ; >MAX
                         dq      STORE       ; !
@@ -1279,10 +1290,14 @@ _fpowl                  push    rsi
                         ; fetch a character at the input position
                         ; then advance input position
 .cont                   dq      TOIN,FETCH      ;   >IN @
+                        ; ( padpos )
                         dq      PUSHPAD,ADDINT  ;   PAD +
+                        ; ( padaddr )
                         dq      CHARFETCH       ;   C@
+                        ; ( char )
                         dq      TOIN,INCR       ;   >IN INCR
                         ; ( char )
+                        dq      OKAY
                         dq      EXIT
 
                         DEFCOL  "SKIPSPC",SKIPSPC,0
@@ -1369,6 +1384,7 @@ _fpowl                  push    rsi
                         ; ( )
                         ; read the count back
                         dq      PUSHNAME,CHARFETCH ;    NAME C@
+                        dq      OKAY
                         ; ( count )
                         ; compare it to 31
                         ; if not reached, jump back to beginning
