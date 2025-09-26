@@ -1428,30 +1428,40 @@ _fpowl                  push    rsi
                         jmp     rax
 
                         ; this writes a character to the DOT buffer
-                        ; ( char )
+                        ; ( char -- )
                         DEFCOL  ">DOT",TODOT,0
                         ; load length field in DOT buffer to see
                         ; if it's 31 or greater
-                        dq      PUSHDOT,CHARFETCH       ; DOT C@
-                        dq      LIT,31,GEINT            ; 31 >=
+                        dq      PUSHDOT,DUP,CHARFETCH   ; DOT C@
+                        ; ( char addr len )
+                        dq      DUP,LIT,31,GEINT        ; 31 >=
                         dq      CONDJUMP,.dontstore     ; ?JUMP[.dontstore]
                         ; still have room
                         ; increment length by one
-                        dq      PUSHDOT,CINCR           ; DOT CINCR
-                        ; load length, compute address for char
-                        dq      PUSHDOT,CHARFETCH       ; DOT C@
-                        dq      PUSHDOT,ADDINT          ; DOT +
+                        ; ( char addr len )
+                        dq      ADDONE                  ; 1+
+                        dq      TWODUP                  ; 2DUP
+                        ; ( char addr len addr len )
+                        ; store at addr (length field)
+                        dq      SWAP,CHARSTORE          ; SWAP C!
+                        ; ( char addr len )
+                        ; compute address for char
+                        dq      ADDINT                  ; +
                         ; ( char addr )
                         ; store character
                         dq      CHARSTORE               ; C!
                         ; done
                         dq      EXIT
+                        ; ( char addr len )
                         ; don't store character
-.dontstore              dq      DROP,EXIT
+.dontstore              dq      TWODROP,DROP,EXIT       ; 2DROP DROP
 
                         ; print the contents of the dot buffer
                         DEFCOL  "PRINTDOT",PRINTDOT,0
                         dq      PUSHDOT,DUP,CHARFETCH   ; DOT DUP C@
+                        ; ( addr len )
+                        ; add one to the address
+                        dq      SWAP,ADDONE,SWAP        ; SWAP 1+ SWAP
                         ; ( addr len )
                         dq      TYPEOUT,EXIT
 
@@ -1667,19 +1677,24 @@ _fpowl                  push    rsi
                         ; ( addr len defptr )
 .next                   dq      MATCHDEF        ;   ?MATCHDEF
                         ; ( addr len defptr bool )
-                        dq      CONDJUMP,.done  ;   ?JUMP[.done]
+                        dq      CONDJUMP,.found  ;  ?JUMP[.found]
                         ; doesn't match: move to previous definition
 .skipmatch              dq      FETCH           ;   @
                         ; ( addr len defptr )
                         ; check if entries are used up
                         dq      DUP,EQZEROINT   ;   DUP =0
-                        dq      CONDJUMP,.done  ;   ?JUMP[.done]
+                        dq      CONDJUMP,.notfound ;   ?JUMP[.notfound]
                         ; nope, compare ->
                         dq      JUMP,.next      ;   JUMP[.next]
                         ; ( addr len defptr )
+                        ; we didn't find the word (defptr is NULL)
+.notfound               dq      TWODROP,DROP    ;   2DROP DROP
+                        dq      LIT,0           ;   0
+                        dq      EXIT
+                        ; ( addr len defptr )
                         ; apparently, we found the word
                         ; if it is has its hidden flag set, we didn't
-.done                   dq      DUP,LIT,8,ADDINT ;  DUP 8 +
+.found                  dq      DUP,LIT,8,ADDINT ;  DUP 8 +
                         dq      CHARFETCH       ;   C@
                         ; ( addr len defptr char )
                         dq      LIT,F_HIDDEN,BINAND ; [F_HIDDEN] AND
@@ -1712,7 +1727,9 @@ _fpowl                  push    rsi
                         dq      DUP,EQZEROINT       ;   DUP =0
                         dq      CONDJUMP,.nochar    ;   ?JUMP[.nochar]
                         ;   ( addr len )
-                        dq      SWAP,DUP,CHARFETCH  ;   SWAP DUP C@
+                        dq      SWAP,DUP            ;   SWAP DUP
+                        ;   ( len addr addr )
+                        dq      CHARFETCH           ;   C@
                         ;   ( len addr char )
                         dq      ROT                 ;   ROT
                         ;   ( addr char len )
@@ -1722,9 +1739,10 @@ _fpowl                  push    rsi
                         dq      ADDONE              ;   +1
                         dq      SWAP                ;   SWAP
                         ;   ( char addr len )
-                        dq      ROT
+                        dq      ROT                 ;   ROT
                         ;   ( addr len char )
                         dq      EXIT
+                        ;   ( addr len )
 .nochar                 dq      LIT,-1              ;   -1
                         dq      EXIT
 
@@ -1808,7 +1826,7 @@ _fpowl                  push    rsi
                         ;    rdi
                         lea     rsi,[r15+rcx*8]
                         mov     rdi,rsi
-                        cld
+                        std
                         lodsq
                         ; rax = [r15+16]
                         ; [r15+16] [r15+8] [r15]
@@ -1823,6 +1841,7 @@ _fpowl                  push    rsi
                         stosq
                         ; [r15+8] [r15] [r15+16]
                         ;                         rdi
+                        cld
 .noop                   NEXT
                         ; count is negative, turn it to positive
                         ; then subtract 1
@@ -1836,7 +1855,7 @@ _fpowl                  push    rsi
                         ;                   rdi
                         mov     rsi,r15
                         mov     rdi,rsi
-                        std
+                        cld
                         lodsq
                         ; rax = [r15]
                         ; [r15+16] [r15+8] [r15]
@@ -1850,7 +1869,6 @@ _fpowl                  push    rsi
                         stosq
                         ;        [r15] [r15+16] [r15+8]
                         ;  rdi
-                        cld
                         NEXT
 
                         ; convert a digit sequence to a number,
@@ -1875,9 +1893,7 @@ _fpowl                  push    rsi
                         dq      SWAP,DROP           ; SWAP DROP
                         ; ( addr len value )
                         ; rotate stack to move value down
-                        dq      ROT
-                        ; ( len value addr )
-                        dq      ROT
+                        dq      TWOROT              ; 2ROT
                         ; ( value addr len )
                         ; read next char
 .nextchar               dq      CGETNCONV       ;   CGETNCONV
@@ -1898,9 +1914,7 @@ _fpowl                  push    rsi
                         ; ( addr len digit value base )
                         dq      MULINT,ADDINT       ; * +
                         ; ( addr len newvalue )
-                        dq      ROT                 ; ROT
-                        ; ( len newvalue addr )
-                        dq      ROT                 ; ROT
+                        dq      TWOROT              ; 2ROT
                         ; ( newvalue addr len )
                         dq      JUMP,.nextchar      ; JUMP[.nextchar]
                         ; not digit: back up one char
@@ -1910,9 +1924,12 @@ _fpowl                  push    rsi
                         ; ( value addr len )
                         ; go back one character
                         dq      BACKNCONV           ; BACKNCONV
-                        ; ( value addr len )
+                        dq      JUMP,.finish1       ; JUMP[.finish1]
+                        ; ( value addr len char )
+.finish                 dq      DROP
                         ; get value on top
-.finish                 dq      ROT                 ; ROT
+                        ; ( value addr len )
+.finish1                dq      ROT            ; ROT
                         ; ( addr len value )
                         ; get address on stack
                         dq      LIT,3,PICK          ; 3 PICK
@@ -2056,8 +2073,9 @@ _fpowl                  push    rsi
                         ; into a signed number
                         dq      SSEQNCONV           ; SSEQNCONV
                         ; ( addr len numdigits value )
+                        dq      OVER,DOT,DUP,DOT
                         ; check numdigits for 0
-                        dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
+                        dq      OVER,EQZEROINT ; OVER =0
                         dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
                         ; ( addr len numdigits value )
                         ; store the value into the mantissa
@@ -2404,6 +2422,8 @@ _fpowl                  push    rsi
                         ; ( addr len )
                         ; duplicate both fields
                         dq      TWODUP              ; 2DUP
+                        ; TEST!!
+                        dq      TWODUP,TYPEOUT      ; 2DUP TYPE
                         ; ( addr len addr len )
                         ; find it in the dictionary
                         dq      FINDWORD            ; FIND
