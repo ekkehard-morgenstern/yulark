@@ -1210,28 +1210,28 @@ _fpowl                  push    rsi
                         DEFASM  "INCR",INCR,0       ; ( addr -- )
                         CHKUNF  1
                         mov     rax,[r15]
-                        inc     qword [r15]
+                        inc     qword [rax]
                         add     r15,8
                         NEXT
 
                         DEFASM  "CINCR",CINCR,0     ; ( addr -- )
                         CHKUNF  1
                         mov     rax,[r15]
-                        inc     byte [r15]
+                        inc     byte [rax]
                         add     r15,8
                         NEXT
 
                         DEFASM  "DECR",DECR,0       ; ( addr -- )
                         CHKUNF  1
                         mov     rax,[r15]
-                        dec     qword [r15]
+                        dec     qword [rax]
                         add     r15,8
                         NEXT
 
                         DEFASM  "CDECR",CDECR,0     ; ( addr -- )
                         CHKUNF  1
                         mov     rax,[r15]
-                        dec     byte [r15]
+                        dec     byte [rax]
                         add     r15,8
                         NEXT
 
