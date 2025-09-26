@@ -1397,7 +1397,6 @@ _fpowl                  push    rsi
                         ; ( char )
                         dq      TOIN,INCR       ;   >IN INCR
                         ; ( char )
-                        dq      OKAY
                         dq      EXIT
 
                         DEFCOL  "SKIPSPC",SKIPSPC,0
@@ -1405,7 +1404,7 @@ _fpowl                  push    rsi
                         ; ( char )
                         dq      DUP,LIT,-1,EQINT ;  DUP -1 =
                         dq      CONDJUMP,.finish ;  ?JUMP[.finish]
-                        dq      DUP,ISSPC       ;   DUP ?SPC
+                        dq      DUP,ISSPC,BINNOT ;   DUP ?SPC NOT
                         dq      CONDJUMP,.finish2 ;  ?JUMP[.finish2]
                         ; ( char )
                         ; drop character
@@ -1552,6 +1551,8 @@ _fpowl                  push    rsi
                         dq      LIT,-1,EQINT    ;   -1 =
                         dq      CONDJUMP,.end   ;   ?JUMP[.end]
                         ; ( char )
+                        dq      DUP,DOT         ;   DUP .
+                        ; dq      OKAY
                         ; compare it to one of the terminator characters
                         ; (SPC, TAB, NEWLINE, NUL)
                         dq      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
@@ -1592,7 +1593,6 @@ _fpowl                  push    rsi
                         ; ( )
                         ; read the count back
                         dq      PUSHNAME,CHARFETCH ;    NAME C@
-                        dq      OKAY
                         ; ( count )
                         ; compare it to 31
                         ; if not reached, jump back to beginning
