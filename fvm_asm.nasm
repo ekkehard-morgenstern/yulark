@@ -2263,20 +2263,7 @@ _fpowl                  push    rsi
                         dq      GETWORD         ; GETWORD
                         ; ( nameaddr len )
                         ; call the internal create function and exit
-
-                        ; TEST!!!
-                        dq      PUSHHERE
-                        dq      LIT,16,PUSHBASE,STORE
-                        dq      DOT
-                        dq      LIT,10,PUSHBASE,STORE
-
                         dq      _CREATE         ; _CREATE
-                        dq      OKAY ; TEST!!
-                        ; TEST!!!
-                        dq      PUSHHERE
-                        dq      LIT,16,PUSHBASE,STORE
-                        dq      DOT
-                        dq      LIT,10,PUSHBASE,STORE
                         ; ( defaddr )
                         dq      EXIT
 
@@ -2375,7 +2362,7 @@ _fpowl                  push    rsi
                         dq      LIT,F_HIDDEN        ; [F_HIDDEN]
                         dq      BINNOT,BINAND       ; NOT AND
                         ; ( flagaddr flags )
-                        dq      SWAP,STORE          ; SWAP !
+                        dq      SWAP,CHARSTORE      ; SWAP C!
                         ; return to immediate mode
                         dq      LBRACKET            ; [
                         dq      EXIT
