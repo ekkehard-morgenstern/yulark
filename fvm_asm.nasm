@@ -2424,8 +2424,6 @@ _fpowl                  push    rsi
                         ; ( addr len )
                         ; duplicate both fields
                         dq      TWODUP              ; 2DUP
-                        ; TEST!!
-                        dq      TWODUP,TYPEOUT      ; 2DUP TYPE
                         ; ( addr len addr len )
                         ; find it in the dictionary
                         dq      FINDWORD            ; FIND
