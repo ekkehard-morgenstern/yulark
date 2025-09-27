@@ -2273,14 +2273,24 @@ _fpowl                  push    rsi
 
                         ; custom codeword routine:
                         ; drop the address of the parameter field on the stack
-                        ; the parameter field is at WA + 1 (the word after the
-                        ; codeword field)
+                        ; the parameter field is at WA + 2 (the word after the
+                        ; codeword field plus the codepointer field)
 fvm_douser              CHKOVF  1
-                        lea     rax,[r12+8] ; paraddr = WA + 1
+                        lea     rax,[r12+16] ; paraddr = WA + 2
                         sub     r15,8
                         mov     [r15],rax
+                        ; check the codepointer field. if empty,
                         ; continue at caller's location
-                        NEXT
+                        mov     rax,[r12+8] ; codeptr = [WA + 1]
+                        test    rax,rax
+                        jz      .tonext
+                        ; if non-zero, push the WP onto the return stack
+                        ; and then set WP to the new address.
+                        sub     r14,8       ; -[RSP] := WP
+                        mov     [r14],r13
+                        mov     r13,rax     ; WP := codeptr
+                        ; begin processing word definition
+.tonext                 NEXT
 
                         ; user CREATE function:
                         ; reads next input word, then creates an empty
@@ -2300,7 +2310,45 @@ fvm_douser              CHKOVF  1
                         ; set up a code word that drops the address of the
                         ; following parameter area
                         dq      LIT,fvm_douser,COMMA    ; [fvm_douser] ,
+                        ; after that, we're storing a FORTH code pointer
+                        ; that gets filled in by DOES> or not, depending
+                        ; on the purpose of the word. 0 means "do nothing"
+                        dq      LIT,0,COMMA             ; 0 ,
                         ; aaand we're done
+                        dq      EXIT
+
+                        ; pass a value from the parameter stack onto the return
+                        ; stack
+                        DEFASM  ">R",TORET,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        add     r15,8
+                        sub     r14,8
+                        mov     [r14],rax
+                        NEXT
+
+                        ; pass a value from the return stack onto the parameter
+                        ; stack
+                        DEFASM  "R>",FROMRET,0
+                        CHKOVF  1
+                        mov     rax,[r14]
+                        add     r14,8
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
+                        ; store position ... TBD ... after the
+                        ; codeword field of the definition (only for words
+                        ; created by CREATE)
+                        DEFCOL  "DOES>",DOES,0
+                        ; get codeword address of latest definition
+                        dq      TOLATEST,TOCFA          ; >LATEST >CFA
+                        ; ( addr )
+                        ; add 8 to get to the following word
+                        dq      LIT,8,ADDINT            ; 8 +
+                        ; store the intended value (TBD)
+                        dq      0,SWAP,STORE     ; xyz SWAP !
+                        ; done
                         dq      EXIT
 
                         ; store specified data word to the position
