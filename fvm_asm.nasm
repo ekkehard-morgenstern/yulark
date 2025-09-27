@@ -2337,19 +2337,55 @@ fvm_douser              CHKOVF  1
                         mov     [r15],rax
                         NEXT
 
+                        ; Explanation of what DOES> does:
+                        ;
+                        ;   : VAR CREATE 0 , ;
+                        ;   : VAL VAR DOES> @ ;
+                        ;   VAL xy
+                        ;
+                        ;   Code path during the compilation of VAL:
+                        ;   :(immed) [VAL] -> VAR(comp) -> DOES(comp)
+                        ;   -> @(comp) -> ;(immed)
+                        ;
+                        ;           VAL definition:
+                        ;               <link back>
+                        ;               \3 V A L \0 \0 \0 \0
+                        ;   codeword->  <fvm_docol>
+                        ;               <VAR reference>
+                        ;               <DOES reference>
+                        ;               <@ reference>
+                        ;               <EXIT reference>
+                        ;
+                        ;   Code path during the execution of VAL:
+                        ;   fvm_docol ->
+                        ;       VAR ->
+                        ;           fvm_docol ->
+                        ;               CREATE ->
+                        ;               LIT 0 ->
+                        ;               , ->
+                        ;            <- EXIT
+                        ;       DOES ->
+                        ;           (store WP in LATEST word's codeptr field)
+                        ;    <----- EXIT
+                        ;   WP during DOES> points to the remainder:
+                        ;       @ ->
+                        ;    <- EXIT
+                        ;
                         ; store position ... TBD ... after the
                         ; codeword field of the definition (only for words
                         ; created by CREATE)
-                        ; DEFCOL  "DOES>",DOES,0
+                        DEFCOL  "DOES>",DOES,0
                         ; get codeword address of latest definition
-                        ; dq      TOLATEST,TOCFA          ; >LATEST >CFA
+                        dq      TOLATEST,FETCH,TOCFA ; >LATEST @ >CFA
                         ; ( addr )
                         ; add 8 to get to the following word
-                        ; dq      LIT,8,ADDINT            ; 8 +
-                        ; store the intended value (TBD)
-                        ; dq      0,SWAP,STORE     ; xyz SWAP !
-                        ; done
-                        ; dq      EXIT
+                        dq      LIT,8,ADDINT            ; 8 +
+                        ; store the return address into that word
+                        dq      FROMRET,SWAP,STORE     ; R> SWAP !
+                        ; store new return address pointing to EXIT
+                        dq      LIT,.toexit,TORET   ; [.toexit] >R
+                        ; done (will pop new address from RSP)
+.toexit                 dq      EXIT
 
                         ; store specified data word to the position
                         ; indicated by the dictionary pointer and update it
