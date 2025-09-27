@@ -2254,17 +2254,53 @@ _fpowl                  push    rsi
                         mov     [r15],rbx   ; leave HERE on stack
                         NEXT
 
+                        ; the compiler's CREATE function:
                         ; reads the next word in the input stream
                         ; then creates a new dictionary entry with it
                         ; and leaves its address on the stack.
                         ; ( -- addr )
-                        DEFCOL  "CREATE",CREATE,0
+                        DEFCOL  "CCREATE",CCREATE,0
                         ; make sure we read a word, exit FORTH if we don't (EOF)
                         dq      GETWORD         ; GETWORD
                         ; ( nameaddr len )
                         ; call the internal create function and exit
                         dq      _CREATE         ; _CREATE
                         ; ( defaddr )
+                        dq      EXIT
+
+                        section .text
+                        align   32
+
+                        ; custom codeword routine:
+                        ; drop the address of the parameter field on the stack
+                        ; the parameter field is at WA + 1 (the word after the
+                        ; codeword field)
+fvm_douser              CHKOVF  1
+                        lea     rax,[r12+8] ; paraddr = WA + 1
+                        sub     r15,8
+                        mov     [r15],rax
+                        ; continue at caller's location
+                        NEXT
+
+                        ; user CREATE function:
+                        ; reads next input word, then creates an empty
+                        ; dictionary entry.
+                        ; when the entry is invoked, it will drop the address
+                        ; of its parameter area (which is the space after
+                        ; the automatically generated code, which is still at
+                        ; the current position (HERE) in dictionary space.)
+                        DEFCOL  "CREATE",CREATE,0
+                        ; just call the compiler's CREATE function out of
+                        ; convenience.
+                        dq      CCREATE                 ; CCREATE
+                        ; ( defptr )
+                        ; we don't need the definition pointer here
+                        dq      DROP                    ; DROP
+                        ; doesn't contain even a CODEWORD field yet.
+                        ; set up a code word that drops the address of the
+                        ; following parameter area
+                        dq      LIT,fvm_douser,COMMA    ; [fvm_douser] ,
+                        ; aaand we're done
                         dq      EXIT
 
                         ; store specified data word to the position
@@ -2312,7 +2348,7 @@ _fpowl                  push    rsi
 
                         ; begin word compilation
                         DEFCOL  ":",COLON,0
-                        dq      CREATE      ; CREATE
+                        dq      CCREATE      ; CCREATE
                         ; ( defaddr )
                         ; append DOCOL
                         dq      LIT,fvm_docol,COMMA     ; [fvm_docol] COMMA
