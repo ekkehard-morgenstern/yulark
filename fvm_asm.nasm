@@ -2340,16 +2340,16 @@ fvm_douser              CHKOVF  1
                         ; store position ... TBD ... after the
                         ; codeword field of the definition (only for words
                         ; created by CREATE)
-                        DEFCOL  "DOES>",DOES,0
+                        ; DEFCOL  "DOES>",DOES,0
                         ; get codeword address of latest definition
-                        dq      TOLATEST,TOCFA          ; >LATEST >CFA
+                        ; dq      TOLATEST,TOCFA          ; >LATEST >CFA
                         ; ( addr )
                         ; add 8 to get to the following word
-                        dq      LIT,8,ADDINT            ; 8 +
+                        ; dq      LIT,8,ADDINT            ; 8 +
                         ; store the intended value (TBD)
-                        dq      0,SWAP,STORE     ; xyz SWAP !
+                        ; dq      0,SWAP,STORE     ; xyz SWAP !
                         ; done
-                        dq      EXIT
+                        ; dq      EXIT
 
                         ; store specified data word to the position
                         ; indicated by the dictionary pointer and update it
