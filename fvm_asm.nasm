@@ -784,7 +784,6 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
                         DEFASM  "PICK",PICK,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        dec     rax
                         CHKUNF  rax
                         mov     rax,[r15+rax*8]
                         mov     [r15],rax
@@ -1460,36 +1459,37 @@ _fpowl                  push    rsi
                         DEFCOL  "PRINTDOT",PRINTDOT,0
                         dq      PUSHDOT,DUP,CHARFETCH   ; DOT DUP C@
                         ; ( addr len )
+                        ; check length, stop if it's zero
+                        dq      DUP,EQZEROINT           ; DUP =0
+                        dq      CONDJUMP,.stop          ; ?JUMP[.stop]
                         ; add one to the address
                         dq      SWAP,ADDONE,SWAP        ; SWAP 1+ SWAP
                         ; ( addr len )
-                        dq      TYPEOUT,EXIT
+                        dq      TYPEOUT,EXIT            ; TYPE
+                        ; ( addr len )
+.stop                   dq      TWODROP,EXIT            ; 2DROP
 
                         ; this writes an unsigned integer to the DOT
                         ; buffer without clearing it
                         ; ( n -- )
                         DEFCOL  "U>DOT",UTODOT,0
-                        ; check if the number is zero
-                        dq      DUP,CONDJUMP,.notzero   ; DUP ?JUMP[.notzero]
-                        ; it is zero: output zero digit and stop
-                        dq      DROP,LIT,'0',TODOT      ; DROP '0' >DOT
-                        dq      EXIT
+                        ; check if the number is greater or equal to BASE
+                        dq      DUP,PUSHBASE,FETCH,ULTINT ; DUP >BASE @ U<
+                        dq      CONDJUMP,.norecurse      ; ?JUMP[.norecurse]
+                        ; ( n )
                         ; recursion: number >= BASE, call myself with number
                         ; divided by BASE
                         ; ( n )
-.recurse                dq      PUSHBASE,FETCH,UDIVINT  ; >BASE @ U/
+                        dq      DUP                     ; DUP
+                        dq      PUSHBASE,FETCH,UDIVINT  ; >BASE @ U/
                         dq      UTODOT                  ; U>DOT
-                        ; ( )
-                        ; the number has been written: done
-                        dq      EXIT
                         ; ( n )
-                        ; check if the number is greater or equal to BASE
-.notzero                dq      DUP,PUSHBASE,FETCH,GEINT ; DUP >BASE @ >=
-                        dq      CONDJUMP,.recurse      ; ?JUMP[.recurse]
+                        ; get division remainder of number divided by BASE
+                        dq      PUSHBASE,FETCH,UMODINT  ; >BASE @ U/MOD
                         ; ( n )
                         ; the number will be in the range 0..BASE-1
                         ; check if it's greater than 9
-                        dq      DUP,LIT,9,GTINT     ; DUP 9 >
+.norecurse              dq      DUP,LIT,9,UGTINT     ; DUP 9 U>
                         dq      CONDJUMP,.nondec    ; ?JUMP[.nondec]
                         ; otherwise, it's in decimal range
                         dq      LIT,'0',ADDINT      ; '0' +
@@ -1502,6 +1502,13 @@ _fpowl                  push    rsi
                         dq      TODOT               ; >DOT
                         ; done
                         dq      EXIT
+
+                        ; this sends a character straight to the console
+                        ; ( n -- )
+                        DEFCOL  "EMIT",EMITCHAR,0
+                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
+                        dq      TODOT                   ; >DOT
+                        dq      PRINTDOT,EXIT           ; PRINTDOT
 
                         ; this prints an unsigned integer to the
                         ; currently selected output device, using BASE
@@ -1516,9 +1523,7 @@ _fpowl                  push    rsi
                         ; output buffer
                         dq      PRINTDOT
                         ; output final blank
-                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
-                        dq      LIT,' ',TODOT           ; ' ' >DOT
-                        dq      PRINTDOT
+                        dq      LIT,' ',EMITCHAR
                         dq      EXIT
 
                         ; this prints an integer to the currently
@@ -1534,15 +1539,15 @@ _fpowl                  push    rsi
                         dq      CONDJUMP,.output     ; ?JUMP[.output]
                         ; negative, store a minus sign
                         dq      LIT,'-',TODOT       ; '-' >DOT
+                        ; negate number
+                        dq      NEGATE              ; NEG
                         ; output number to buffer
 .output                 dq      UTODOT                  ; U>DOT
                         ; ( )
                         ; output buffer
                         dq      PRINTDOT
                         ; output final blank
-                        dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
-                        dq      LIT,' ',TODOT           ; ' ' >DOT
-                        dq      PRINTDOT
+                        dq      LIT,' ',EMITCHAR
                         dq      EXIT
 
                         ; read a word from input into NAME buffer
@@ -1561,8 +1566,6 @@ _fpowl                  push    rsi
                         dq      LIT,-1,EQINT    ;   -1 =
                         dq      CONDJUMP,.end   ;   ?JUMP[.end]
                         ; ( char )
-                        dq      DUP,DOT         ;   DUP .
-                        ; dq      OKAY
                         ; compare it to one of the terminator characters
                         ; (SPC, TAB, NEWLINE, NUL)
                         dq      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
@@ -2073,7 +2076,6 @@ _fpowl                  push    rsi
                         ; into a signed number
                         dq      SSEQNCONV           ; SSEQNCONV
                         ; ( addr len numdigits value )
-                        dq      OVER,DOT,DUP,DOT
                         ; check numdigits for 0
                         dq      OVER,EQZEROINT ; OVER =0
                         dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
