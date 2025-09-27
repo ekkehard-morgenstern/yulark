@@ -71,8 +71,8 @@
                         ; code is ideally aligned on 32-byte boundary
                         align   32
 
-                        ; rsi - memory block
-                        ; rdi - memory size
+                        ; rdi - memory block
+                        ; rsi - memory size
                         ; rdx - return stack size
 fvm_run                 enter   0x208,0     ; 512 bytes of local storage
 
@@ -127,12 +127,12 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
                         ; set up RSP
                         ; in the beginning, it points just beyond the end of
                         ; the available memory area.
-                        mov     r14,rsi
-                        add     r14,rdi
+                        mov     r14,rdi
+                        add     r14,rsi
 
                         ; save the memory area's address and size
-                        mov     [rbp-MEMADDR],rsi
-                        mov     [rbp-MEMSIZE],rdi
+                        mov     [rbp-MEMADDR],rdi
+                        mov     [rbp-MEMSIZE],rsi
 
                         ; set up PSP
                         ; create the parameter stack pointer by subtracting the
@@ -162,7 +162,7 @@ _QUIT                   dq      QUIT
                         ; set up DP
                         ; the dictionary pointer grows forward in memory and
                         ; simply points to be beginning of the memory area.
-                        mov     rbx,rsi
+                        mov     rbx,rdi
 
                         ; the middle between PSP and DP is the stack lower bound
                         mov     rax,r15
@@ -2239,6 +2239,7 @@ _fpowl                  push    rsi
                         stosq
                         ; store the length (make sure its not longer than 31)
                         and     rcx,31
+                        mov     al,cl
                         stosb
                         ; check for zero count
                         jrcxz   .zeroname
@@ -2262,7 +2263,20 @@ _fpowl                  push    rsi
                         dq      GETWORD         ; GETWORD
                         ; ( nameaddr len )
                         ; call the internal create function and exit
+
+                        ; TEST!!!
+                        dq      PUSHHERE
+                        dq      LIT,16,PUSHBASE,STORE
+                        dq      DOT
+                        dq      LIT,10,PUSHBASE,STORE
+
                         dq      _CREATE         ; _CREATE
+                        dq      OKAY ; TEST!!
+                        ; TEST!!!
+                        dq      PUSHHERE
+                        dq      LIT,16,PUSHBASE,STORE
+                        dq      DOT
+                        dq      LIT,10,PUSHBASE,STORE
                         ; ( defaddr )
                         dq      EXIT
 
