@@ -271,6 +271,7 @@ fvm_badbase             ERRMSG  "? bad number base, reset to 10"
 fvm_notimpl             ERRMSG  "? not implemented"
 fvm_nullptr             ERREND  "? NULL pointer"
 fvm_unknown             ERREND  "? unknown entity in stream"
+fvm_unexpeof            ERREND  "? unexpected end of file"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -2664,6 +2665,19 @@ fvm_douser              CHKOVF  1
                         ; stack (which it already is), so we can jump right
                         ; back into word processing
 .numimmed               dq      JUMP,.nextword
+
+                        DEFCOL  "(",LPAREN,F_IMMEDIATE
+.nextchar               dq      PADGETCH            ; PADGETCH
+                        dq      DUP,LIT,-1,EQINT    ; -1 =
+                        dq      CONDJUMP,.eof       ; ?JUMP[.end]
+                        dq      DUP,LIT,')',EQINT   ; ')' =
+                        dq      CONDJUMP,.end       ; ?JUMP[.end]
+                        dq      DROP                ; DROP
+                        dq      JUMP,.nextchar      ; JUMP[.nextchar]
+.eof                    dq      DROP                ; DROP
+                        dq      JMPSYS,fvm_unexpeof ; JMPSYS[.unexpeof]
+.end                    dq      DROP                ; DROP
+                        dq      EXIT
 
                         section .rodata
 
