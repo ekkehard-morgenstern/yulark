@@ -2299,6 +2299,12 @@ fvm_douser              CHKOVF  1
                         ; of its parameter area (which is the space after
                         ; the automatically generated code, which is still at
                         ; the current position (HERE) in dictionary space.)
+                        ; I gathered this from the documentation to Forth-79
+                        ; and the implementation of Forth-83 (FiGFORTH on the
+                        ; Amstrad CPC), from which I did remember this.
+                        ; NOTE that unlike Jonesforth, which I used for
+                        ; reference, Yulark's FORTH implementation fully
+                        ; supports CREATE ... DOES> .
                         DEFCOL  "CREATE",CREATE,0
                         ; just call the compiler's CREATE function out of
                         ; convenience.
@@ -2373,7 +2379,12 @@ fvm_douser              CHKOVF  1
                         ;
                         ; Store the position of the word pointer popped off
                         ; the return stack after the codeword field of the
-                        ; definition (only for words created by CREATE)
+                        ; definition (only for words created by CREATE).
+                        ;
+                        ; A good explanation of what is supposed to happen can
+                        ; be found at reply #1 to the following article:
+                        ; https://softwareengineering.stackexchange.com/questions/339283/forth-how-do-create-and-does-work-exactly
+                        ;
                         DEFCOL  "DOES>",DOES,0
                         ; get codeword address of latest definition
                         dq      TOLATEST,FETCH,TOCFA ; >LATEST @ >CFA
