@@ -2371,12 +2371,16 @@ fvm_douser              CHKOVF  1
                         ;       @ ->
                         ;    <- EXIT
                         ;
-                        ; store position ... TBD ... after the
-                        ; codeword field of the definition (only for words
-                        ; created by CREATE)
+                        ; Store the position of the word pointer popped off
+                        ; the return stack after the codeword field of the
+                        ; definition (only for words created by CREATE)
                         DEFCOL  "DOES>",DOES,0
                         ; get codeword address of latest definition
                         dq      TOLATEST,FETCH,TOCFA ; >LATEST @ >CFA
+                        ; ( addr )
+                        ; ensure it is for fvm_douser:
+                        dq      DUP,FETCH,LIT,fvm_douser ; DUP @ [fvm_douser]
+                        dq      NEINT,CONDJUMP,.cancel  ; <> ?JUMP[.cancel]
                         ; ( addr )
                         ; add 8 to get to the following word
                         dq      LIT,8,ADDINT            ; 8 +
@@ -2386,6 +2390,8 @@ fvm_douser              CHKOVF  1
                         dq      LIT,.toexit,TORET   ; [.toexit] >R
                         ; done (will pop new address from RSP)
 .toexit                 dq      EXIT
+                        ; not for fvm_douser: cancel
+.cancel                 dq      DROP,EXIT
 
                         ; store specified data word to the position
                         ; indicated by the dictionary pointer and update it
