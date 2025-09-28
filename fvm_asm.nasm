@@ -81,6 +81,10 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
+                        ; rbp-0x150     return stack upper bound
+%define RSTKUPR         0x150
+                        ; rbp-0x158     return stack lower bound
+%define RSTKLWR         0x158
                         ; rbp-0x160     buffer for . subroutine
 %define DOTBUF          0x160
                         ; rbp-0x180     RSP reset address
@@ -142,6 +146,12 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
                         mov     r15,r14
                         sub     r15,rdx
                         mov     [rbp-STKUPR],r15
+
+                        ; set the return stack lower bound (which is the same)
+                        mov     [rbp-RSTKLWR],r15
+
+                        ; record the return stack upper bound
+                        mov     [rbp-RSTKUPR],r14
 
                         ; push QUIT on the return stack so the last EXIT
                         ; will execute that
@@ -251,8 +261,10 @@ fvm_term                pop     rbx
                         section .text
                         %endmacro
 
-fvm_stkovf              ERREND  "? stack overflow"
-fvm_stkunf              ERREND  "? stack underflow"
+fvm_stkovf              ERREND  "? parameter stack overflow"
+fvm_stkunf              ERREND  "? parameter stack underflow"
+fvm_rstkovf             ERREND  "? return stack overflow"
+fvm_rstkunf             ERREND  "? return stack underflow"
 fvm_divzro              ERREND  "? division by zero"
 fvm_nofpu               ERREND  "? FPU not found"
 fvm_badbase             ERRMSG  "? bad number base, reset to 10"
@@ -278,6 +290,24 @@ fvm_unknown             ERREND  "? unknown entity in stream"
 %%okay:
                         %endmacro
 
+                        ; check for return stack overflow
+                        %macro  RCHKOVF 1
+                        lea     r8,[r14 - (%1 * 8)]
+                        cmp     r8,qword [rbp - RSTKLWR]
+                        jae     %%okay
+                        jmp     fvm_rstkovf
+%%okay:
+                        %endmacro
+
+                        ; check for return stack underflow
+                        %macro  RCHKUNF 1
+                        lea     r8,[r14 + (%1 * 8)]
+                        cmp     r8,qword [rbp - RSTKUPR]
+                        jbe     %%okay
+                        jmp     fvm_rstkunf
+%%okay:
+                        %endmacro
+
 ;                       +--------------------+
 ;                       |  link to previous  |
 ;                       +-----+--------------+
@@ -294,7 +324,8 @@ fvm_unknown             ERREND  "? unknown entity in stream"
                         align   32
 
                         ; starts the processing of every FORTH implemented word
-fvm_docol               sub     r14,8       ; -[RSP] := WP
+fvm_docol               RCHKOVF 1
+                        sub     r14,8       ; -[RSP] := WP
                         mov     [r14],r13
                         lea     r13,[r12+8] ; WP := WA + 1
                         ; begin processing word definition
@@ -346,6 +377,7 @@ fvm_docol               sub     r14,8       ; -[RSP] := WP
 
                         ; terminates any FORTH implemented word
                         DEFASM  "EXIT",EXIT,0
+                        RCHKUNF 1
                         mov     r13,[r14]   ; WP := [RSP]+
                         add     r14,8
                         NEXT
@@ -2286,6 +2318,7 @@ fvm_douser              CHKOVF  1
                         jz      .tonext
                         ; if non-zero, push the WP onto the return stack
                         ; and then set WP to the new address.
+                        RCHKOVF 1
                         sub     r14,8       ; -[RSP] := WP
                         mov     [r14],r13
                         mov     r13,rax     ; WP := codeptr
@@ -2327,6 +2360,7 @@ fvm_douser              CHKOVF  1
                         ; stack
                         DEFASM  ">R",TORET,0
                         CHKUNF  1
+                        RCHKOVF 1
                         mov     rax,[r15]
                         add     r15,8
                         sub     r14,8
@@ -2337,6 +2371,7 @@ fvm_douser              CHKOVF  1
                         ; stack
                         DEFASM  "R>",FROMRET,0
                         CHKOVF  1
+                        RCHKUNF 1
                         mov     rax,[r14]
                         add     r14,8
                         sub     r15,8
