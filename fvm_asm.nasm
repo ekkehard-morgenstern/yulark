@@ -272,6 +272,8 @@ fvm_notimpl             ERRMSG  "? not implemented"
 fvm_nullptr             ERREND  "? NULL pointer"
 fvm_unknown             ERREND  "? unknown entity in stream"
 fvm_unexpeof            ERREND  "? unexpected end of file"
+fvm_notfound            ERREND  "? word not found"
+fvm_noparam             ERREND  "? word has no parameter field"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -2590,6 +2592,69 @@ fvm_douser              CHKOVF  1
                         dq      ROT,ROT         ; ROT ROT
                         dq      EXIT
 
+                        ; In compile mode, LITERAL compiles to code that leaves
+                        ; the specified number on the stack. In immediate mode,
+                        ; it does nothing.
+                        ; ( number -- )
+                        DEFCOL  "LITERAL",LITERAL,F_IMMEDIATE
+                        ; check if we're in immediate mode
+                        dq      INIMMEDIATE         ; ?IMMEDIATE
+                        dq      CONDJUMP,.immed     ; ?JUMP[.immed]
+                        ; not immediate mode: compile number
+                        ; for that, the address of LIT must be stored,
+                        ; then the provided number
+                        dq      LIT,LIT,COMMA       ; [LIT] ,
+                        dq      COMMA               ; ,
+                        ; ( )
+                        ; finished
+                        dq      EXIT
+                        ; LITERAL does nothing in immediate mode
+                        ; except consume its parameter
+.immed                  dq      DROP,EXIT
+
+                        ; leave the address of the parameter field
+                        ; of the following word on the stack.
+                        ; if compiling, generate code that pushes that
+                        ; address on the stack instead.
+                        DEFCOL  "'",QUOTE,F_IMMEDIATE
+                        ; read next word from input, exit FORTH at EOF
+                        dq      GETWORD             ; WORD
+                        ; ( addr len )
+                        ; find it in the dictionary
+                        dq      FINDWORD            ; FIND
+                        ; ( defptr )
+                        ; check if zero
+                        dq      DUP,EQZEROINT       ; DUP =0
+                        dq      CONDJUMP,.notfound  ; ?JUMP[.notfound]
+                        ; found, compute CFA, and fetch codeword
+                        dq      TOCFA,DUP,FETCH     ; >CFA DUP @
+                        ; ( cfa codeword )
+                        ; check if it's a user word
+                        dq      LIT,fvm_douser,NEINT ; [fvm_douser] <>
+                        dq      CONDJUMP,.noparam   ; ?JUMP[.noparam]
+                        ; ( cfa )
+                        ; yes it is, calculate parameter address
+                        dq      LIT,16,ADDINT       ; 16 +
+                        ; ( paraddr )
+                        ; check for immediate mode:
+                        dq      INIMMEDIATE         ; ?IMMEDIATE
+                        dq      CONDJUMP,.immed     ; ?JUMP[.immed]
+                        ; compile mode: store as literal
+                        dq      LITERAL
+                        dq      EXIT
+                        ; immediate mode
+                        ; ( paraddr )
+                        ; leave address on the stack
+.immed                  dq      EXIT
+                        ; ( cfa )
+                        ; word has no parameter field
+.noparam                dq      DROP                ; DROP
+                        dq      JMPSYS,fvm_noparam  ; JMPSYS[.noparam]
+                        ; ( 0 )
+                        ; not found
+.notfound               dq      DROP                ; DROP
+                        dq      JMPSYS,fvm_notfound ; JMPSYS[.notfound]
+
                         ; finally, the interpreter
                         ; reads words and runs them until EOF occurs
                         DEFCOL  "INTERPRET",INTERPRET,0
@@ -2652,11 +2717,9 @@ fvm_douser              CHKOVF  1
                         ; check if we're in immediate mode
 .number                 dq      INIMMEDIATE         ; ?IMMEDIATE
                         dq      CONDJUMP,.numimmed  ; ?JUMP[.numimmed]
-                        ; not immediate mode: compile number
-                        ; for that, the address of LIT must be stored,
-                        ; then the provided number
-                        dq      LIT,LIT,COMMA       ; [LIT] ,
-                        dq      COMMA               ; ,
+                        ; ( number )
+                        ; compile literal
+                        dq      LITERAL
                         ; ( )
                         ; back to word processing
                         dq      JUMP,.nextword
