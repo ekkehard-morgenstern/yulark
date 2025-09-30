@@ -2742,6 +2742,27 @@ fvm_douser              CHKOVF  1
 .end                    dq      DROP                ; DROP
                         dq      EXIT
 
+                        DEFCOL  "VARIABLE",VARIABLE,0
+                        dq      CREATE              ; CREATE
+                        dq      LIT,0,COMMA         ; 0 ,
+                        dq      EXIT
+
+                        ; ( n -- )
+                        DEFCOL  "CONSTANT",CONSTANT,0
+                        dq      GETWORD,_CREATE     ; WORD _CREATE
+                        ; ( n here )
+                        dq      DROP
+                        ; ( n )
+                        ; compile DOCOL
+                        dq      LIT,fvm_docol,COMMA ; [fvm_docol] ,
+                        ; compile number on stack
+                        dq      LIT,LIT,COMMA       ; [LIT] ,
+                        dq      COMMA               ; ,
+                        ; compile EXIT
+                        dq      LIT,EXIT,COMMA      ; [EXIT] ,
+                        ; done
+                        dq      EXIT
+
                         section .rodata
 
                         align   8
