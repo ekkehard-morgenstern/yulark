@@ -2785,7 +2785,9 @@ fvm_douser              CHKOVF  1
                         add     r15,8
                         ; get CFA field for latest definition
                         mov     rdi,[rbp-LATEST]
+                        push    rdx
                         call    _tocfa
+                        pop     rdx
                         mov     rdi,rax
                         ; check if it's a user definition
                         lea     rax,fvm_douser
