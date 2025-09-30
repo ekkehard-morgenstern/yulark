@@ -274,6 +274,7 @@ fvm_unknown             ERREND  "? unknown entity in stream"
 fvm_unexpeof            ERREND  "? unexpected end of file"
 fvm_notfound            ERREND  "? word not found"
 fvm_noparam             ERREND  "? word has no parameter field"
+fvm_negallot            ERREND  "? negative allot"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -2241,22 +2242,36 @@ _fpowl                  push    rsi
                         ; get address of codeword from dictionary entry
                         ; (codeword from address, CFA)
                         ; ( addr -- addr )
-                        DEFCOL  ">CFA",TOCFA,0
-                        dq      CHKPTR          ; CHKPTR
-                        ; move to name field
-                        dq      LIT,8,ADDINT    ; 8 +
-                        ; ( addr )
+                        DEFASM  ">CFA",TOCFA,0
+                        CHKUNF  1
+                        ; check pointer
+                        mov     rax,[r15]
+                        test    rax,rax
+                        jnz     .ok
+                        jmp     fvm_nullptr
+.ok                     mov     rdi,rax
+                        call    _tocfa
+                        mov     [r15],rax
+                        NEXT
+
+                        ; addr - rdi
+                        ; (must point to start of word definition)
+                        ; move to name field (i.e. skip back pointer)
+_tocfa                  add     rdi,8
                         ; get name length
-                        dq      DUP,CHARFETCH   ; DUP C@
-                        dq      LIT,31,BINAND   ; 31 AND
-                        ; ( addr len )
+                        mov     al,[rdi]
+                        and     al,31   ; mask off flag bits
                         ; add 1+len to addr
-                        dq      ADDONE,ADDINT   ; +1 +
+                        inc     al
+                        movzx   rax,al
+                        add     rax,rdi
                         ; add 7 and AND NOT 7
-                        dq      LIT,7,ADDINT    ; 7 +
-                        dq      LIT,7,BINNOT,BINAND ; 7 NOT AND
+                        mov     rdx,7
+                        add     rax,rdx
+                        not     rdx
+                        and     rax,rdx
                         ; finished
-                        dq      EXIT
+                        ret
 
                         ; create a new dictionary entry with specified name
                         ; and update the backwards link, leave the value of HERE
@@ -2762,6 +2777,37 @@ fvm_douser              CHKOVF  1
                         dq      LIT,EXIT,COMMA      ; [EXIT] ,
                         ; done
                         dq      EXIT
+
+                        ; ( n -- )
+                        DEFASM  "ALLOT",ALLOT,0
+                        CHKUNF  1
+                        mov     rdx,[r15]
+                        add     r15,8
+                        ; get CFA field for latest definition
+                        mov     rdi,[rbp-LATEST]
+                        call    _tocfa
+                        mov     rdi,rax
+                        ; check if it's a user definition
+                        lea     rax,fvm_douser
+                        cmp     [rdi],rax
+                        je      .ok
+                        ; nope, trigger error
+                        jmp     fvm_noparam
+                        ; yes, check if increment value
+                        ; is negative
+.ok                     test    rdx,rdx
+                        jl      .negcount
+                        ; it's positive, multiply by 8
+                        shl     rdx,3
+                        ; test again if it's now negative
+                        test    rdx,rdx
+                        jl      .negcount
+                        ; it's positive or zero, add to HERE
+                        add     rbx,rdx
+                        ; TODO !!memory exhaustion checks!!
+                        NEXT
+                        ; count to be allotted is negative
+.negcount               jmp     fvm_negallot
 
                         section .rodata
 
