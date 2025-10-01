@@ -85,8 +85,8 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
 %define RSTKUPR         0x150
                         ; rbp-0x158     return stack lower bound
 %define RSTKLWR         0x158
-                        ; rbp-0x160     buffer for . subroutine
-%define DOTBUF          0x160
+                        ; rbp-0x17f     buffer for . subroutine
+%define DOTBUF          0x17f
                         ; rbp-0x180     RSP reset address
 %define RSPRESET        0x180
                         ; rbp-0x188     system memory size (read-only)
