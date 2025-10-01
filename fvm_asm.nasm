@@ -1613,6 +1613,32 @@ _fpowl                  push    rsi
                         dq      LIT,' ',EMITCHAR
                         dq      EXIT
 
+                        ; ( char -- char )
+                        DEFASM  ">UPPER",TOUPPER,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        cmp     al,'a'
+                        jb      .notlower
+                        cmp     al,'z'
+                        ja      .notlower
+                        sub     al,'a'
+                        add     al,'A'
+                        mov     [r15],rax
+.notlower               NEXT
+
+                        ; ( char -- char )
+                        DEFASM  ">LOWER",TOLOWER,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        cmp     al,'A'
+                        jb      .notupper
+                        cmp     al,'Z'
+                        ja      .notupper
+                        sub     al,'A'
+                        add     al,'a'
+                        mov     [r15],rax
+.notupper               NEXT
+
                         ; read a word from input into NAME buffer
                         ; returns address and length
                         ; ( -- addr len )
@@ -1658,8 +1684,10 @@ _fpowl                  push    rsi
                         dq      LIT,0,LIT,0     ;   0 0
                         dq      EXIT
                         ; ( char )
+                        ; convert character to upper case
+.storechr               dq      TOUPPER
                         ; increment name length and leave a copy of it
-.storechr               dq      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
+                        dq      PUSHNAME,DUP,CINCR  ; NAME DUP CINCR
                         dq      CHARFETCH       ;   C@
                         ; ( char count )
                         ; store the character into the new position
@@ -3037,13 +3065,13 @@ fvm_douser              CHKOVF  1
                         DEFCOL  "HEX",_HEX,0
                         dq      LIT,16,PUSHBASE,STORE,EXIT
 
-                        DEFCOL  "DEC",_DEC,0
+                        DEFCOL  "DECIMAL",_DEC,0
                         dq      LIT,10,PUSHBASE,STORE,EXIT
 
-                        DEFCOL  "OCT",_OCT,0
+                        DEFCOL  "OCTAL",_OCT,0
                         dq      LIT,8,PUSHBASE,STORE,EXIT
 
-                        DEFCOL  "BIN",_BIN,0
+                        DEFCOL  "BINARY",_BIN,0
                         dq      LIT,2,PUSHBASE,STORE,EXIT
 
                         section .rodata
