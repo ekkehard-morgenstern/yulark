@@ -87,6 +87,8 @@ fvm_run                 enter   0x308,0     ; 768 bytes of local storage
 %define RSTKLWR         0x158
 
 ; ...
+                        ; rbp-0x178     address origin (used by DSEQNCONV)
+%define ADDRESS0        0x178
                         ; rbp-0x180     RSP reset address
 %define RSPRESET        0x180
                         ; rbp-0x188     system memory size (read-only)
@@ -1966,11 +1968,19 @@ _fpowl                  push    rsi
                         ;  rdi
                         NEXT
 
+                        DEFASM  ">ADDRESS0",TOADDRESS0,0
+                        CHKOVF  1
+                        lea     rax,[rbp-ADDRESS0]
+                        sub     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; convert a digit sequence to a number,
                         ; returning its value and number of digits
                         ; ( addr len -- addr len numdig value )
                         ; on error, both values will be zero
                         DEFCOL  "DSEQNCONV",DSEQNCONV,0
+                        dq      OVER,TOADDRESS0,STORE ; OVER >ADDRESS0 !
                         ; get first char
                         dq      CGETNCONV       ;   CGETNCONV
                         ; ( addr len char )
@@ -2030,7 +2040,7 @@ _fpowl                  push    rsi
                         dq      LIT,3,PICK          ; 3 PICK
                         ; ( addr len value addr )
                         ; compute number of digits
-                        dq      PUSHNAME,ADDONE     ; NAME +1
+                        dq      TOADDRESS0,FETCH    ; >ADDRESS0 @
                         dq      SUBINT              ; -
                         ; ( addr len value numdigits )
                         dq      SWAP
@@ -2111,45 +2121,81 @@ _fpowl                  push    rsi
                         ; ( addr len 0 0 )
                         dq      EXIT
 
+                        section .text
+                        align   32
+
+                        ; rax - int value
+                        ; rax - float value
+                        ; convert integer to float
+_i2f                    push    rax
+                        fild    qword [rsp]
+                        fstp    qword [rsp]
+                        pop     rax
+                        ret
+
+                        ; load integer var as float
+                        %macro  LIVASFLT 2
+                        mov     rax,[rbp-%2]
+                        call    _i2f
+                        mov     %1,rax
+                        %endmacro
+
+                        ; load integer var as real
+                        %macro  LIVASREL 1
+                        mov     rax,[rbp-%1]
+                        call    _i2f
+                        push    rax
+                        fild    qword [rsp]
+                        pop     rax
+                        %endmacro
+
+                        ; exponentiate integer vars as real
+                        %macro  EIVASREL 2
+                        LIVASFLT    rdi,%1
+                        LIVASFLT    rsi,%2
+                        call        _fpowl
+                        push        rax
+                        fld         qword [rsp]
+                        pop         rax
+                        %endmacro
+
+                        align       32
+                        ; compute BASE to the power of exponent
+_basePowExp             EIVASREL    BASE,EXPONENT
+                        ret
+
+                        align       32
+                        ; compute BASE to the power of fracndig
+_basePowFracNDig        EIVASREL    BASE,FRACNDIG
+                        ret
+
+                        align       32
+                        ; compute fraction multiplier 1 / (base^fracndig)
+_fracMult               fld1
+                        call        _basePowFracNDig
+                        fdivp
+                        ret
+
+                        align       32
+                        ; compute mantissa * fraction
+_multMantFract          LIVASREL    MANTISSA
+                        call        _fracMult
+                        fmulp
+                        ret
+
+                        align       32
+                        ; compute number * exponent
+_multNumbExp            call        _multMantFract
+                        call        _basePowExp
+                        fmulp
+                        ret
+
                         ; convert number in floating-point fields
                         ; to actual floating-point and return it
                         ; ( -- number bool )
                         DEFASM  "GETREAL",GETREAL,0
                         CHKOVF  2
-                        ; compute BASE to the power of exponent
-                        mov     rdi,[rbp-BASE]
-                        mov     rsi,[rbp-EXPONENT]
-                        call    _fpowl
-                        ; multiply the result with the mantissa
-                        push    rax
-                        fld     qword [rsp]
-                        pop     rax
-                        fld     qword [rbp-MANTISSA]
-                        fmulp
-                        ; st0 = mantissa * ( BASE ^ exponent )
-                        ; compute the fraction by 1 / ( BASE ^ fracndig )
-                        fld1
-                        mov     rdi,[rbp-BASE]
-                        mov     rsi,[rbp-FRACNDIG]  ; integer
-                        ; convert FRACNDIG to floating-point
-                        push    rsi
-                        fild    qword [rsp]
-                        fstp    qword [rsp]
-                        pop     rsi
-                        ; computer power BASE ^ fracndig
-                        call    _fpowl
-                        push    rax
-                        fld     qword [rsp]
-                        pop     rax
-                        ; st2 = mantissa * ( BASE ^ exponent )
-                        ; st1 = 1
-                        ; st0 = BASE ^ fracndig
-                        ; compute 1 / ( BASE ^ fracndig )
-                        fdivp
-                        ; st1 = mantissa * ( BASE ^ exponent )
-                        ; st0 = 1 / ( BASE ^ fracndig )
-                        ; add fraction to result
-                        faddp
+                        call    _multNumbExp
                         ; output result
                         sub     r15,16
                         fstp    qword [r15+8] ; result
@@ -2174,6 +2220,7 @@ _fpowl                  push    rsi
                         ; ( addr len numdigits value )
                         ; store the value into the mantissa
                         ; and drop the numdigits field
+                        dq      DUP,_HEX,DOT,_DEC   ; !!!TEST!!!
                         dq      TOMANTISSA,STORE    ; >MANTISSA !
                         dq      DROP                ; DROP
                         ; clear fraction and exponent
@@ -2235,6 +2282,10 @@ _fpowl                  push    rsi
                         dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
                         ; ( addr len numdigits value )
                         ; we are all go, set the variables
+                        dq      LIT,'(',EMITCHAR    ; !!!TEST!!
+                        dq      OVER,DOT            ; !!!TEST!!!
+                        dq      DUP,_HEX,DOT,_DEC   ; !!!TEST!!!
+                        dq      LIT,')',EMITCHAR    ; !!!TEST!!
                         dq      TOFRACTION,STORE    ; >FRACTION !
                         dq      TOFRACNDIG,STORE    ; >FRACNDIG !
                         ; ( addr len )
@@ -2265,11 +2316,15 @@ _fpowl                  push    rsi
                         dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
                         dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
                         ; seems valid, store the exponent, drop numdigits
+                        dq      LIT,'(',EMITCHAR    ; !!!TEST!!
+                        dq      OVER,DOT            ; !!!TEST!!!
+                        dq      DUP,_HEX,DOT,_DEC   ; !!!TEST!!!
+                        dq      LIT,')',EMITCHAR    ; !!!TEST!!
                         dq      TOEXPONENT,STORE    ; >EXPONENT !
                         dq      DROP                ; DROP
                         ; ( addr len )
                         ; there should be no more characters now
-                        dq      DUP,EQZEROINT       ; DUP =0
+                        dq      DUP,NEZEROINT       ; DUP <>0
                         dq      CONDJUMP,.convfail3 ; ?JUMP[.convfail3]
                         ; otherwise, we're finished reading a
                         ; floating-point number
@@ -2281,7 +2336,11 @@ _fpowl                  push    rsi
 .floatingpoint2         dq      TWODROP             ; 2DROP
                         ; ( )
                         ; convert to real number and push it and the truth value
-                        dq      GETREAL
+                        dq      GETREAL             ; GETREAL
+                        dq      LIT,'(',EMITCHAR    ; !!!TEST!!!
+                        dq      OVER,_HEX,DOT,_DEC  ; !!!TEST!!!
+                        dq      DUP,DOT             ; !!!TEST!!!
+                        dq      LIT,')',EMITCHAR    ; !!!TEST!!!
                         ; ( number bool )
                         dq      EXIT
 
