@@ -2936,6 +2936,76 @@ fvm_douser              CHKOVF  1
                         mov     [rax],rbx       ; put position for after THEN
                         NEXT
 
+                        ; move bytes
+                        ; automatically handle overlapping copies
+                        ; ( source target count -- )
+                        DEFASM  "CMOVE",_CMOVE,0
+                        CHKUNF  3
+                        mov     rsi,[r15+16]
+                        mov     rdi,[r15+8]
+                        mov     rcx,[r15]
+                        jrcxz   .done       ; no change (count zero)
+                        cmp     rsi,rdi
+                        je      .done       ; no change (src/tgt identical)
+                        jb      .backwards
+                        ; rsi > rdi: forward copy
+                        ;       rsi ->
+                        ;      /
+                        ;   rdi ->
+                        cld
+                        rep     movsb
+                        jmp     .done
+                        ; rsi < rdi: backward copy
+                        ;                <- rsi
+                        ;                      \
+                        ;                    <- rdi
+.backwards              std
+                        ; start with last byte
+                        add     rdi,rcx
+                        dec     rdi
+                        add     rsi,rcx
+                        dec     rsi
+                        rep     movsb
+                        cld
+.done                   NEXT
+
+                        ; move cells
+                        ; automatically handle overlapping copies
+                        ; ( source target count -- )
+                        DEFASM  "MOVE",_MOVE,0
+                        CHKUNF  3
+                        mov     rax,7
+                        not     rax
+                        mov     rsi,[r15+16]
+                        and     rsi,rax         ; quadword align pointer
+                        mov     rdi,[r15+8]
+                        and     rdi,rax         ; quadword align pointer
+                        mov     rcx,[r15]
+                        jrcxz   .done           ; no change (count zero)
+                        cmp     rsi,rdi
+                        je      .done           ; no change (src/tgt identical)
+                        jb      .backwards
+                        ; rsi > rdi: forward copy
+                        ;       rsi ->
+                        ;      /
+                        ;   rdi ->
+                        cld
+                        rep     movsq
+                        jmp     .done
+                        ; rsi < rdi: backward copy
+                        ;                <- rsi
+                        ;                      \
+                        ;                    <- rdi
+.backwards              std
+                        ; start with last cell
+                        lea     rdi,[rdi+rcx*8]
+                        sub     rdi,8
+                        lea     rsi,[rsi+rcx*8]
+                        sub     rsi,8
+                        rep     movsq
+                        cld
+.done                   NEXT
+
                         section .rodata
 
                         align   8
