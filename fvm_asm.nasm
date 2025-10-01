@@ -2811,6 +2811,131 @@ fvm_douser              CHKOVF  1
                         ; count to be allotted is negative
 .negcount               jmp     fvm_negallot
 
+                        ; ( n -- bool )
+                        DEFCOL  "?TRUE",ISTRUE,0
+                        dq      NEZEROINT,EXIT      ; <>0
+
+                        ; ( n -- bool )
+                        DEFCOL  "?FALSE",ISFALSE,0
+                        dq      EQZEROINT,EXIT      ; =0
+
+                        ; <n> IF ... [ ELSE ... ] THEN
+                        ; <n> UNLESS ... [ ELSE ... ] THEN
+                        ; ( <> stack parameter, [] optional )
+                        ;
+                        ; work like this:
+                        ;
+                        ; IF takes truth value from stack.
+                        ;   If true, executes block following IF,
+                        ;      then continues after THEN.
+                        ;   If false, executes block optionally following
+                        ;      ELSE, then continues after THEN.
+                        ;
+                        ; UNLESS takes truth value from stack.
+                        ;   If false, executes block following UNLESS,
+                        ;      then continues after THEN.
+                        ;   If true, executes block optionally following
+                        ;      ELSE, then contiues after THEN.
+                        ;
+                        ; IF compiles to:
+                        ;   ?FALSE ?CONDJUMP[.elseorthen] [0]
+                        ; then pushes the address of [0] to the return stack
+                        ; using >R to be filled out later.
+                        ;
+                        ; UNLESS compiles to:
+                        ;   ?TRUE ?CONDJUMP[.elseorthen] [0]
+                        ; then pushes the address of [0] to the return stack
+                        ; using >R to be filled out later.
+                        ;
+                        ; ELSE compiles to:
+                        ;   JUMP[.then] [0]
+                        ; then pops the return address from the return stack
+                        ; using R> storing the address after the JUMP [0] at
+                        ; that location.
+                        ; then pushes the address of [0] after the JUMP to
+                        ; the return stack using >R to be filled out later.
+                        ;
+                        ; THEN compiles to:
+                        ;   (nothing)
+                        ; then pops the return address from the return stack
+                        ; using R> storing the current address there.
+                        ;
+
+                        ; IF compiles to:
+                        ;   ?FALSE ?CONDJUMP[.elseorthen] [0]
+                        ; then pushes the address of [0] to the return stack
+                        ; using >R to be filled out later.
+                        DEFASM  "IF",DOIF,F_IMMEDIATE
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,ISFALSE     ; store ISFALSE
+                        stosq
+                        lea     rax,CONDJUMP    ; store CONDJUMP
+                        stosq
+                        mov     rdx,rdi         ; remember position
+                        xor     rax,rax         ; store 0
+                        stosq
+                        mov     rbx,rdi
+                        RCHKOVF 1
+                        sub     r14,8           ; store position on ret stack
+                        mov     [r14],rdx
+                        NEXT
+
+                        ; UNLESS takes truth value from stack.
+                        ;   If false, executes block following UNLESS,
+                        ;      then continues after THEN.
+                        ;   If true, executes block optionally following
+                        ;      ELSE, then contiues after THEN.
+                        DEFASM  "UNLESS",DOUNLESS,F_IMMEDIATE
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,ISTRUE      ; store ISTRUE
+                        stosq
+                        lea     rax,CONDJUMP    ; store CONDJUMP
+                        stosq
+                        mov     rdx,rdi         ; remember position
+                        xor     rax,rax         ; store 0
+                        stosq
+                        mov     rbx,rdi
+                        RCHKOVF 1
+                        sub     r14,8           ; store position on ret stack
+                        mov     [r14],rdx
+                        NEXT
+
+                        ; ELSE compiles to:
+                        ;   JUMP[.then] [0]
+                        ; then pops the return address from the return stack
+                        ; using R> storing the address after the JUMP [0] at
+                        ; that location.
+                        ; then pushes the address of [0] after the JUMP to
+                        ; the return stack using >R to be filled out later.
+                        DEFASM  "ELSE",DOELSE,F_IMMEDIATE
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,JUMP        ; store JUMP
+                        stosq
+                        mov     rdx,rdi         ; remember position
+                        xor     rax,rax         ; store 0
+                        stosq
+                        mov     rbx,rdi
+                        RCHKUNF 1
+                        mov     rax,[r14]       ; get position from ret stack
+                        mov     [rax],rbx       ; put position for after ELSE
+                        mov     [r14],rdx       ; leave position of 0 on retstk
+                        NEXT
+
+                        ; THEN compiles to:
+                        ;   (nothing)
+                        ; then pops the return address from the return stack
+                        ; using R> storing the current address there.
+                        ;
+                        DEFASM  "THEN",DOTHEN,F_IMMEDIATE
+                        RCHKUNF 1
+                        mov     rax,[r14]       ; get position from ret stack
+                        add     r14,8
+                        mov     [rax],rbx       ; put position for after THEN
+                        NEXT
+
                         section .rodata
 
                         align   8
