@@ -529,6 +529,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         setl    al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -539,6 +540,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         setle   al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -549,6 +551,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         setg    al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -559,6 +562,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         seta    al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -569,6 +573,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         setge   al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -579,6 +584,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         sete    al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -589,6 +595,7 @@ fvm_docol               RCHKOVF 1
                         xor     rdx,rdx
                         cmp     rax,rdx
                         setne   al
+                        neg     al
                         movsx   rax,al
                         mov     [r15],rax
                         NEXT
@@ -598,6 +605,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setl    al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -608,6 +616,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setb    al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -618,6 +627,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setle   al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -628,6 +638,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setbe   al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -638,6 +649,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setg    al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -648,6 +660,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         seta    al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -658,6 +671,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setge   al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -668,6 +682,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setae   al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -678,6 +693,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         sete    al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
@@ -688,6 +704,7 @@ fvm_docol               RCHKOVF 1
                         mov     rax,[r15+8]
                         cmp     rax,[r15]
                         setne   al
+                        neg     al
                         movsx   rax,al
                         add     r15,8
                         mov     [r15],rax
