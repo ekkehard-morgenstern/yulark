@@ -74,7 +74,7 @@
                         ; rdi - memory block
                         ; rsi - memory size
                         ; rdx - return stack size
-fvm_run                 enter   0x208,0     ; 512 bytes of local storage
+fvm_run                 enter   0x308,0     ; 768 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
@@ -85,8 +85,8 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
 %define RSTKUPR         0x150
                         ; rbp-0x158     return stack lower bound
 %define RSTKLWR         0x158
-                        ; rbp-0x17f     buffer for . subroutine
-%define DOTBUF          0x17f
+
+; ...
                         ; rbp-0x180     RSP reset address
 %define RSPRESET        0x180
                         ; rbp-0x188     system memory size (read-only)
@@ -121,6 +121,8 @@ fvm_run                 enter   0x208,0     ; 512 bytes of local storage
 %define PPOS            0x1f8
                         ; rbp-0x200     LATEST word definition
 %define LATEST          0x200
+                        ; rbp-0x300     buffer for . subroutine
+%define DOTBUF          0x300
 
                         push    r15
                         push    r14
@@ -524,7 +526,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  "<0",LTZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         setl    al
                         movsx   rax,al
                         mov     [r15],rax
@@ -533,7 +536,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  "<=0",LEZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         setle   al
                         movsx   rax,al
                         mov     [r15],rax
@@ -542,7 +546,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  ">0",GTZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         setg    al
                         movsx   rax,al
                         mov     [r15],rax
@@ -551,7 +556,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  "U>0",UGTZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         seta    al
                         movsx   rax,al
                         mov     [r15],rax
@@ -560,7 +566,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  ">=0",GEZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         setge   al
                         movsx   rax,al
                         mov     [r15],rax
@@ -569,7 +576,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  "=0",EQZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         sete    al
                         movsx   rax,al
                         mov     [r15],rax
@@ -578,7 +586,8 @@ fvm_docol               RCHKOVF 1
                         DEFASM  "<>0",NEZEROINT,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         setne   al
                         movsx   rax,al
                         mov     [r15],rax
@@ -1210,7 +1219,8 @@ _fpowl                  push    rsi
                         DEFASM  "?ERR0",ERR2ZERO,0
                         CHKUNF  1
                         mov     rax,[r15]
-                        cmp     rax,0
+                        xor     rdx,rdx
+                        cmp     rax,rdx
                         jge     .good
                         xor     rax,rax
 .good                   mov     [r15],rax
@@ -1466,10 +1476,10 @@ _fpowl                  push    rsi
                         ; ( char -- )
                         DEFCOL  ">DOT",TODOT,0
                         ; load length field in DOT buffer to see
-                        ; if it's 31 or greater
+                        ; if it's 255 or greater
                         dq      PUSHDOT,DUP,CHARFETCH   ; DOT C@
                         ; ( char addr len )
-                        dq      DUP,LIT,31,GEINT        ; 31 >=
+                        dq      DUP,LIT,255,GEINT       ; 255 >=
                         dq      CONDJUMP,.dontstore     ; ?JUMP[.dontstore]
                         ; still have room
                         ; increment length by one
@@ -1571,8 +1581,8 @@ _fpowl                  push    rsi
                         dq      LIT,0,PUSHDOT,CHARSTORE ; 0 DOT C!
                         ; test number for negativity
                         ; ( n )
-                        dq      DUP,LTZEROINT,BINNOT ; DUP <0 NOT
-                        dq      CONDJUMP,.output     ; ?JUMP[.output]
+                        dq      DUP,GEZEROINT       ; DUP >=0
+                        dq      CONDJUMP,.output    ; ?JUMP[.output]
                         ; negative, store a minus sign
                         dq      LIT,'-',TODOT       ; '-' >DOT
                         ; negate number
@@ -1854,7 +1864,8 @@ _fpowl                  push    rsi
                         mov     rcx,[r15]
                         add     r15,8
                         jrcxz   .noop
-                        cmp     rcx,0
+                        xor     rdx,rdx
+                        cmp     rcx,rdx
                         jl      .negative
                         dec     rcx
                         jrcxz   .noop
@@ -3005,6 +3016,18 @@ fvm_douser              CHKOVF  1
                         rep     movsq
                         cld
 .done                   NEXT
+
+                        DEFCOL  "HEX",_HEX,0
+                        dq      LIT,16,PUSHBASE,STORE,EXIT
+
+                        DEFCOL  "DEC",_DEC,0
+                        dq      LIT,10,PUSHBASE,STORE,EXIT
+
+                        DEFCOL  "OCT",_OCT,0
+                        dq      LIT,8,PUSHBASE,STORE,EXIT
+
+                        DEFCOL  "BIN",_BIN,0
+                        dq      LIT,2,PUSHBASE,STORE,EXIT
 
                         section .rodata
 
