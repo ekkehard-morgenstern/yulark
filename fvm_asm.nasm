@@ -2227,10 +2227,17 @@ _fracMult               LIVASREL    FRACTION
                         ret
 
                         align       32
-                        ; compute mantissa + fraction
+                        ; compute +mantissa + fraction
+                        ; or      -mantissa - fraction
 _multMantFract          LIVASREL    MANTISSA
                         call        _fracMult
+                        mov         rax,[rbp-MANTISSA]
+                        xor         rdx,rdx
+                        cmp         rax,rdx
+                        jl          .negative
                         faddp
+                        ret
+.negative               fsubp
                         ret
 
                         align       32
