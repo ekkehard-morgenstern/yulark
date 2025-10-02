@@ -80,4 +80,3 @@ _fpowl                  push    rsi
                         ret
 
                         section .note.GNU-stack
-

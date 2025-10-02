@@ -27,7 +27,7 @@
                         section     .text
 
                         global      fvm_run
-                        extern      isatty
+                        extern      isatty,snprintf
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -2121,6 +2121,28 @@ _fpowl                  push    rsi
                         ; ( addr len 0 0 )
                         dq      EXIT
 
+                        ; print floating point number
+                        ; ( float -- )
+                        DEFASM  "F.",FLOATDOT,0
+                        CHKUNF  1
+                        lea     rdi,[rbp-DOTBUF]
+                        mov     rsi,255
+                        lea     rdx,_floatdot_fmt
+                        movq    xmm0,qword [r15]
+                        add     r15,8
+                        mov     al,1
+                        call    snprintf
+                        mov     rdi,[rbp-OFILE]
+                        lea     rsi,[rbp-DOTBUF]
+                        mov     rdx,rax             ; count
+                        mov     rax,__NR_write
+                        syscall
+                        NEXT
+
+                        section .rodata
+                        align   8
+_floatdot_fmt           db      "%g ",0
+
                         section .text
                         align   32
 
@@ -2133,10 +2155,27 @@ _i2f                    push    rax
                         pop     rax
                         ret
 
+                        ; rax - int value
+                        ; rax - float value
+                        ; convert integer to negative float
+_i2nf                   push    rax
+                        fild    qword [rsp]
+                        fchs
+                        fstp    qword [rsp]
+                        pop     rax
+                        ret
+
                         ; load integer var as float
                         %macro  LIVASFLT 2
                         mov     rax,[rbp-%2]
                         call    _i2f
+                        mov     %1,rax
+                        %endmacro
+
+                        ; load integer var as negative float
+                        %macro  LIVASNFL 2
+                        mov     rax,[rbp-%2]
+                        call    _i2nf
                         mov     %1,rax
                         %endmacro
 
@@ -2145,7 +2184,7 @@ _i2f                    push    rax
                         mov     rax,[rbp-%1]
                         call    _i2f
                         push    rax
-                        fild    qword [rsp]
+                        fld     qword [rsp]
                         pop     rax
                         %endmacro
 
@@ -2159,28 +2198,39 @@ _i2f                    push    rax
                         pop         rax
                         %endmacro
 
+                        ; exponentiate integer vars as real
+                        ; negative exponent
+                        %macro  EIVASRLN 2
+                        LIVASFLT    rdi,%1
+                        LIVASNFL    rsi,%2
+                        call        _fpowl
+                        push        rax
+                        fld         qword [rsp]
+                        pop         rax
+                        %endmacro
+
                         align       32
                         ; compute BASE to the power of exponent
 _basePowExp             EIVASREL    BASE,EXPONENT
                         ret
 
                         align       32
-                        ; compute BASE to the power of fracndig
-_basePowFracNDig        EIVASREL    BASE,FRACNDIG
+                        ; compute BASE to the power of -fracndig
+_basePowFracNDig        EIVASRLN    BASE,FRACNDIG
                         ret
 
                         align       32
-                        ; compute fraction multiplier 1 / (base^fracndig)
-_fracMult               fld1
+                        ; compute fraction multiplier fraction*(base^-fracndig)
+_fracMult               LIVASREL    FRACTION
                         call        _basePowFracNDig
-                        fdivp
+                        fmulp
                         ret
 
                         align       32
-                        ; compute mantissa * fraction
+                        ; compute mantissa + fraction
 _multMantFract          LIVASREL    MANTISSA
                         call        _fracMult
-                        fmulp
+                        faddp
                         ret
 
                         align       32
@@ -2339,6 +2389,7 @@ _multNumbExp            call        _multMantFract
                         dq      GETREAL             ; GETREAL
                         dq      LIT,'(',EMITCHAR    ; !!!TEST!!!
                         dq      OVER,_HEX,DOT,_DEC  ; !!!TEST!!!
+                        dq      OVER,FLOATDOT       ; !!!TEST!!!
                         dq      DUP,DOT             ; !!!TEST!!!
                         dq      LIT,')',EMITCHAR    ; !!!TEST!!!
                         ; ( number bool )
