@@ -2121,6 +2121,46 @@ _fpowl                  push    rsi
                         ; ( addr len 0 0 )
                         dq      EXIT
 
+                        section .text
+                        align   32
+
+                        ; compute logarithms (floating-point)
+                        ; ( rdi:base rsi:number -- rax:output )
+_flog                   push    rdi
+                        push    rsi
+                        ; logb(x) = (1/(log2(b))) * log2(x)
+                        fld1
+                        fld1
+                        fld     qword [rsp+8]   ; base
+                        ; st2 - 1
+                        ; st1 - 1
+                        ; st0 - base
+                        fyl2x
+                        ; st1 - 1
+                        ; st0 - 1*log2(base) = log2(base)
+                        fdivp
+                        ; st0 - 1/log2(base)
+                        fld     qword [rsp]     ; number
+                        ; st1 - 1/log2(base)
+                        ; st0 - number
+                        fyl2x
+                        ; st0 - result
+                        add     rsp,8
+                        fstp    qword [rsp]
+                        pop     rax
+                        ret
+
+                        ; compute logarithms (floating-point)
+                        ; ( base number -- output )
+                        DEFASM  "FLOG",FLOATLOG,0
+                        CHKUNF  2
+                        mov     rdi,[r15+8]
+                        mov     rsi,[r15]
+                        call    _flog
+                        add     r15,8
+                        mov     [r15],rax
+                        NEXT
+
                         ; print floating point number
                         ; TBD: Manually decode using BASE
                         ; ( float -- )
