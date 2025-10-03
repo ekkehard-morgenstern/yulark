@@ -2122,6 +2122,7 @@ _fpowl                  push    rsi
                         dq      EXIT
 
                         ; print floating point number
+                        ; TBD: Manually decode using BASE
                         ; ( float -- )
                         DEFASM  "F.",FLOATDOT,0
                         CHKUNF  1
