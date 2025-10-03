@@ -2277,7 +2277,6 @@ _multNumbExp            call        _multMantFract
                         ; ( addr len numdigits value )
                         ; store the value into the mantissa
                         ; and drop the numdigits field
-                        dq      DUP,_HEX,DOT,_DEC   ; !!!TEST!!!
                         dq      TOMANTISSA,STORE    ; >MANTISSA !
                         dq      DROP                ; DROP
                         ; clear fraction and exponent
@@ -2339,10 +2338,6 @@ _multNumbExp            call        _multMantFract
                         dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
                         ; ( addr len numdigits value )
                         ; we are all go, set the variables
-                        dq      LIT,'(',EMITCHAR    ; !!!TEST!!
-                        dq      OVER,DOT            ; !!!TEST!!!
-                        dq      DUP,_HEX,DOT,_DEC   ; !!!TEST!!!
-                        dq      LIT,')',EMITCHAR    ; !!!TEST!!
                         dq      TOFRACTION,STORE    ; >FRACTION !
                         dq      TOFRACNDIG,STORE    ; >FRACNDIG !
                         ; ( addr len )
@@ -2373,10 +2368,6 @@ _multNumbExp            call        _multMantFract
                         dq      LIT,2,PICK,EQZEROINT ; 2 PICK =0
                         dq      CONDJUMP,.convfail2  ; ?JUMP[.convfail2]
                         ; seems valid, store the exponent, drop numdigits
-                        dq      LIT,'(',EMITCHAR    ; !!!TEST!!
-                        dq      OVER,DOT            ; !!!TEST!!!
-                        dq      DUP,_HEX,DOT,_DEC   ; !!!TEST!!!
-                        dq      LIT,')',EMITCHAR    ; !!!TEST!!
                         dq      TOEXPONENT,STORE    ; >EXPONENT !
                         dq      DROP                ; DROP
                         ; ( addr len )
@@ -2394,11 +2385,6 @@ _multNumbExp            call        _multMantFract
                         ; ( )
                         ; convert to real number and push it and the truth value
                         dq      GETREAL             ; GETREAL
-                        dq      LIT,'(',EMITCHAR    ; !!!TEST!!!
-                        dq      OVER,_HEX,DOT,_DEC  ; !!!TEST!!!
-                        dq      OVER,FLOATDOT       ; !!!TEST!!!
-                        dq      DUP,DOT             ; !!!TEST!!!
-                        dq      LIT,')',EMITCHAR    ; !!!TEST!!!
                         ; ( number bool )
                         dq      EXIT
 
