@@ -32,9 +32,9 @@
 #include <math.h>
 
 // arbitrary logarithm
-/* static double alog( double base, double number ) {
+static double alog( double base, double number ) {
     return log( number ) / log( base );
-}  */
+}
 
 // extern uint64_t nearest( void );
 // extern void restore( uint64_t flags );
@@ -44,16 +44,22 @@ extern void extract10( double d, double* psig, int16_t* pexp );
 
 #define LOG102 0.301029995664
 
+static void readln( const char* prompt, char* buf, size_t bufsz ) {
+    printf( "%s? ", prompt ); fflush( stdout );
+    buf[0] = '\0';
+    fgets( buf, bufsz, stdin );
+}
+
 int main( int argc, char** argv ) {
 
     char buf[256];
-    buf[0] = '\0';
-    fgets( buf, 256, stdin );
-    if ( buf[0] == '\0' ) return EXIT_FAILURE;
-    double d;
+    double d; int b;
+    readln( "Floating-point number", buf, 256 ); 
     if ( sscanf( buf, "%lf", &d ) != 1 ) return EXIT_FAILURE;
+    readln( "Desired output base  ", buf, 256 );
+    if ( sscanf( buf, "%d", &b ) != 1 || b < 2 || b > 36 ) return EXIT_FAILURE;
 
-    printf( "d = %g\n", d );
+    printf( "d = %g, b = %d\n", d, b );
 
     bool s = signbit(d) ? true : false;
     d = fabs( d );
@@ -88,7 +94,14 @@ int main( int argc, char** argv ) {
     int exp102i = (int) round( exp102 );
     double exp102f = ( exp102 - exp102i ) / LOG102;
     t = sig2 * pow( 2.0, exp102f );
-    printf( "exp102i = %d, t = %g\n", exp102i, t );
+    printf( "t = %g, exp102i = %d\n", t, exp102i );
+
+    double logb2 = alog( b, 2 );
+    double expb2 = exp2 * logb2;
+    int expb2i = (int) round( expb2 );
+    double expb2f = ( expb2 - expb2i ) / logb2;
+    t = sig2 * pow( 2.0, expb2f );
+    printf( "t = %g, expb2i = %d\n", t, expb2i );
 
     return EXIT_SUCCESS;
 }
