@@ -3528,6 +3528,144 @@ _dig2chr                movzx   rax,al
                         ; ( remain )
                         dq      EXIT
 
+                        DEFASM  "PREP",PUSHPREP,0
+                        CHKOVF  1
+                        sub     r15,8
+                        lea     rax,[rbp-PREPBUF]
+                        mov     [r15],rax
+                        NEXT
+
+                        ; "zero-run"
+                        ; eliminate trailing zeroes at the end of the buffer
+                        ; by decrementing addr
+                        ; ( start addr -- start addr )
+                        DEFCOL  "ZERORUN",ZERORUN,0
+                        ; ( start addr )
+.prev                   dq      SWAP,TWODUP     ; SWAP 2DUP
+                        ; ( addr start addr start )
+                        dq      UGTINT,BINNOT   ; U> NOT
+                        dq      CONDJUMP,.done  ; ?JUMP[.done]
+                        dq      SWAP
+                        ; ( start addr )
+                        dq      SUBONE          ; 1-
+                        dq      DUP,CHARFETCH   ; DUP C@
+                        dq      LIT,'0',EQINT   ; '0' =
+                        dq      CONDJUMP,.prev  ; ?JUMP[.prev]
+                        ; ( start addr )
+                        ; finished, increase addr by 1
+                        dq      ADDONE          ; 1+
+                        dq      EXIT
+                        ; ( addr start )
+.done                   dq      SWAP,EXIT
+
+                        ; "nine-run"
+                        ; Eliminate trailing nines at the end of the buffer
+                        ; by decrementing addr.
+                        ; What a "nine" is is determined by BASE (=BASE-1).
+                        ; On the digit that was not "nine", increment by 1.
+                        ; ( start addr -- start addr )
+                        DEFCOL  "NINERUN",NINERUN,0
+                        dq      PUSHBASE,FETCH  ; BASE @
+                        dq      SUBONE          ; 1-
+                        dq      DIG2CHR         ; DIG2CHR
+                        ; ( start addr nine )
+                        dq      LIT,-3,ROLL     ; -3 ROLL
+                        ; ( nine start addr )
+.prev                   dq      SWAP,TWODUP     ; SWAP 2DUP
+                        ; ( nine addr start addr start )
+                        dq      UGTINT,BINNOT ; OVER U> NOT
+                        dq      CONDJUMP,.done  ; ?JUMP[.done]
+                        dq      SWAP            ; SWAP
+                        ; ( nine start addr )
+                        dq      SUBONE          ; 1-
+                        dq      DUP,CHARFETCH   ; DUP C@
+                        ; ( nine start addr char )
+                        dq      LIT,4,PICK,EQINT  ; 4 PICK =
+                        dq      CONDJUMP,.prev  ; ?JUMP[.prev]
+                        ; ( nine start addr )
+                        dq      DUP,CHARFETCH   ; C@
+                        ; ( nine start addr char )
+                        dq      LIT,'.',EQINT   ; '.' =
+                        dq      CONDJUMP,.prev  ; ?JUMP[.prev]
+                        ; ( nine start addr )
+                        ; on the character that is not a "nine"
+                        ; and not a dot: increment it
+                        dq      DUP,CINCR       ; CINCR
+                        ; increment pointer to point past that
+                        dq      ADDONE          ; 1+
+                        ; ( nine start addr )
+                        ; get the "nine" on top
+.finish                 dq      ROT             ; ROT
+                        ; ( start addr nine )
+                        ; drop it
+                        dq      DROP            ; DROP
+                        ; ( start addr )
+                        ; done
+                        dq      EXIT
+                        ; ( nine addr start )
+.done                   dq      SWAP            ; SWAP
+                        dq      JUMP,.finish    ; JUMP[.finish]
+
+                        ; output mantissa of unified number
+                        ; (with at most one leading digit before the decimal
+                        ; point)
+                        ; ( start limit number maxdig -- length )
+                        DEFCOL  "OUTMANT",OUTMANT,0
+                        ; ( start limit number maxdig )
+                        dq      LIT,-1              ; -1
+                        ; ( start limit number maxdig first )
+                        dq      LIT,-4,ROLL         ; -4 ROLL
+                        ; ( start first limit number maxdig )
+                        dq      LIT,-4,ROLL         ; -4 ROLL
+                        ; ( start maxdig first limit number )
+                        dq      LIT,5,PICK          ; 5 PICK
+                        ; ( start maxdig first limit number addr )
+                        dq      SWAP                ; SWAP
+                        ; ( start maxdig first limit addr number )
+                        ; make copy of limit
+                        dq      LIT,3,PICK          ; 3 PICK
+                        ; ( start maxdig first limit addr number limit )
+                        dq      LIT,-6,ROLL         ; -6 ROLL
+                        ; ( start limit maxdig first limit addr number )
+                        dq      STOREDIGITS         ; DIGITS!
+                        ; ( start limit remain )
+                        dq      SUBINT              ; -
+                        ; ( start addr )
+                        ; Now digits are stored, addr points past the end.
+                        ; Now we have to check whether we need to do either
+                        ; a zero-run or a nine-run (see above).
+                        ; if addr equals start, do nothing
+                        dq      SWAP,TWODUP         ; SWAP 2DUP
+                        ; ( addr start addr start )
+                        dq      UGTINT,BINNOT       ; U> NOT
+                        dq      CONDJUMP,.stop      ; ?JUMP[.stop]
+                        dq      SWAP                ; SWAP
+                        ; ( start addr )
+                        ; check if the character right before is a '0'
+                        dq      DUP,SUBONE,CHARFETCH ; DUP 1- C@
+                        ; ( start addr char )
+                        dq      DUP,LIT,'0',NEINT   ; DUP '0' <>
+                        dq      CONDJUMP,.notzero
+                        ; ( start addr char )
+                        ; yes: do zero-run
+                        dq      DROP,ZERORUN        ; DROP ZERORUN
+                        dq      JUMP,.stop2         ; JUMP[.stop]
+                        ; ( start addr char )
+                        ; see if it's a "nine" (BASE-1)
+.notzero                dq      PUSHBASE,FETCH,SUBONE ; BASE @ 1-
+                        dq      DIG2CHR             ; DIG2CHR
+                        ; ( start addr char nine )
+                        dq      NEINT,CONDJUMP,.stop2 ; <> ?JUMP[.stop2]
+                        ; ( start addr )
+                        ; do nine-run
+                        dq      NINERUN             ; NINERUN
+                        ; ( start addr )
+.stop2                  dq      SWAP                ; SWAP
+                        ; ( addr start )
+.stop                   dq      SUBINT              ; -
+                        ; ( length )
+                        dq      EXIT
+
                         section .rodata
 
                         align   8
