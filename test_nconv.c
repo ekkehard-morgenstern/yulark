@@ -50,6 +50,55 @@ static void readln( const char* prompt, char* buf, size_t bufsz ) {
     fgets( buf, bufsz, stdin );
 }
 
+static int baseddigit( int base, int val ) {
+    return val <= 9 ? '0' + val : ( 'A' + ( val - 10 ) );
+}
+
+static void storedigit( char* buf, size_t bufsz, size_t* ppos, int base,
+    int val ) {
+    size_t pos = *ppos;
+    if ( base < 2 || base > 36 || val < 0 || val >= base ) {
+        fprintf( stderr, "? storedigit: invalid parameter, base=%d, val=%d\n",
+            base, val );
+        exit( EXIT_FAILURE );
+    }
+    int ch = baseddigit( base, val );
+    if ( pos < bufsz-1U ) buf[pos++] = (char) ch;
+    *ppos = pos;
+}
+
+static void storedot( char* buf, size_t bufsz, size_t* ppos ) {
+    size_t pos = *ppos;
+    if ( pos < bufsz-1U ) buf[pos++] = (char) '.';
+    *ppos = pos;
+}
+
+static void outputmantissa( char* buf, size_t bufsz, size_t* ppos, 
+    double data, int base, int maxdig ) {
+    size_t pos = *ppos;
+    bool first = true;
+    while ( --maxdig >= 0 ) {
+        int dig = (int) fmod( trunc( data ), base );
+        // printf( "dig = %d\n", dig );
+        storedigit( buf, bufsz, &pos, base, dig );
+        if ( first ) { first = false; storedot( buf, bufsz, &pos ); }
+        data *= base;
+    }
+    char nine = (char) baseddigit( base, base-1 );
+    if ( pos > 0U && buf[pos-1U] == '0' ) {
+        // zero-run
+        while ( pos > 0U && buf[pos-1U] == '0' ) --pos;
+    } else if ( pos > 0U && buf[pos-1U] == nine ) {
+        // nine-run
+        while ( pos > 0U && ( buf[pos-1U] == nine || buf[pos-1U] == '.' ) ) {
+            --pos;
+        }
+        if ( pos > 0U ) buf[pos-1U] += 1;
+    }
+    buf[pos] = '\0';
+    *ppos = pos;
+}
+
 int main( int argc, char** argv ) {
 
     char buf[256];
@@ -101,7 +150,12 @@ int main( int argc, char** argv ) {
     int expb2i = (int) round( expb2 );
     double expb2f = ( expb2 - expb2i ) / logb2;
     t = sig2 * pow( 2.0, expb2f );
-    printf( "t = %g, expb2i = %d\n", t, expb2i );
+    int maxdig = (int) round( alog( b, pow( 2, 52 ) ) );
+    printf( "t = %g, expb2i = %d, maxdig = %d\n", t, expb2i, maxdig );
+
+    size_t pos = 0;
+    outputmantissa( buf, 256U, &pos, t, b, maxdig );
+    printf( "m = '%s'\n", buf );
 
     return EXIT_SUCCESS;
 }
