@@ -74,7 +74,7 @@
                         ; rdi - memory block
                         ; rsi - memory size
                         ; rdx - return stack size
-fvm_run                 enter   0x308,0     ; 768 bytes of local storage
+fvm_run                 enter   0x408,0     ; 768 bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
@@ -125,6 +125,8 @@ fvm_run                 enter   0x308,0     ; 768 bytes of local storage
 %define LATEST          0x200
                         ; rbp-0x300     buffer for . subroutine
 %define DOTBUF          0x300
+                        ; rbp-0x400     preparation buffer for F.
+%define PREPBUF         0x400
 
                         push    r15
                         push    r14
@@ -1804,9 +1806,9 @@ _fpowl                  push    rsi
                         ; ( defptr )
                         dq      EXIT
 
-                        ; check BASE
-                        DEFASM  "CHECKBASE",CHECKBASE,0
-                        mov     rax,[rbp-BASE]
+                        ; check number base (BASE)
+                        ;
+_checkbase              mov     rax,[rbp-BASE]
                         cmp     rax,2
                         jl      .badbase
                         cmp     rax,36
@@ -1814,7 +1816,12 @@ _fpowl                  push    rsi
 .badbase                call    fvm_badbase
                         mov     rax,10
                         mov     [rbp-BASE],rax
-.baseok                 NEXT
+.baseok                 ret
+
+                        ; check BASE
+                        DEFASM  "CHECKBASE",CHECKBASE,0
+                        call    _checkbase
+                        NEXT
 
                         ; get a character for numeric conversion
                         ;   ( addr len -- addr len char )
@@ -3217,6 +3224,297 @@ fvm_douser              CHKOVF  1
 
                         DEFCOL  "BINARY",_BIN,0
                         dq      LIT,2,PUSHBASE,STORE,EXIT
+
+                        section .text
+                        align   32
+
+                        ; fix up exponent (also generates new output)
+                        ; (algorithm taken from my other project "AsmBASIC",
+                        ; module toknum.nasm, function detok_wrnum())
+                        ;   rdi - pointer to target buffer (char*)
+                        ;   rsi - pointer to source buffer (const char*)
+                        ;   rdx - maximum number of digits
+                        ;   rcx - total number of digits
+                        ;   r8  - pointer to exponent (int16_t*)
+                        ; get exponent shift
+_fixupexp               mov         ax,[r8]
+                        mov         r9,rdx      ; save maximum number of digits
+                        ; check to see if it's zero, positive or negative
+                        cmp         ax,0
+                        je          .noshift
+                        jg          .exppos
+                        ; exp is negative
+; what we want here is:
+;   1.23 (e-7)
+;  |h|    dl   |
+;   0.000000123
+; total leeway we have is MAXDEC - current number of digits
+                        sub         dx,cx
+                        cmp         dx,0
+                        je          .noshift
+                        ; compare exponent against that
+                        neg         ax
+                        cmp         ax,dx
+                        jle         .neglessmax
+                        mov         ax,dx   ; limit to dx
+                        jmp         .negshift
+.neglessmax             mov         dx,ax   ; limit to ax
+                        ; reduce exponent by amount
+.negshift               sub         ax,dx
+                        neg         ax
+                        mov         [r8],ax ; store new exponent
+                        ; dx contains the number of zeros before
+                        ; the actual digits, the first one being
+                        ; the one before the decimal point.
+                        mov         al,'0'
+                        stosb
+                        mov         al,'.'
+                        stosb
+                        mov         al,'0'
+.leadzero               dec         dl
+                        jz          .endlead
+                        stosb
+                        jmp         .leadzero
+                        ; now output the remaining digits
+.endlead                movzx       rcx,cx
+.endlead2               lodsb
+                        cmp         al,'.'
+                        je          .endlead2
+                        stosb
+                        loop        .endlead2
+                        jmp         .shiftdone
+                        ; exponent is positive
+; what we want here is:
+;   1.23 (e+7)
+;  |h|    dl   |
+;   12300000
+.exppos                 mov         rdx,r9  ; maximum number of digits
+                        ; compare exponent against that
+                        cmp         ax,dx
+                        jle         .lessmax
+                        mov         dx,cx   ; limit to cx
+                        jmp         .shift
+.lessmax                mov         dx,ax   ; limit to ax
+                        ; reduce exponent by amount
+.shift                  sub         ax,dx
+                        mov         [r8],ax ; store new exponent
+                        ; dx contains the number of digits
+                        ; either fetched from after the decimal point
+                        ; or added as zeroes to the end
+                        movzx       rcx,cx
+                        ; first, copy the leading digits straight over
+.fetchloop              lodsb
+                        cmp         al,'.'
+                        je          .gotdp
+                        cmp         al,'0'
+                        je          .skipfetch
+                        stosb
+.skipfetch              loop        .fetchloop
+                        ; finished before reaching a decimal point
+                        ; now add dx zeroes
+                        movzx       rcx,dx
+                        test        rcx,rcx
+                        jz          .shiftdone
+                        mov         al,'0'
+                        rep         stosb
+                        jmp         .shiftdone
+                        ; after decimal point
+                        ;   cx - available digits in buffer
+                        ;   dx - digits to go before decimal point
+.gotdp                  cmp         dx,cx
+                        jg          .fillzero
+                        ; dx <= cx
+                        ; copy digits to write before decimal point
+                        sub         cx,dx
+                        xchg        cx,dx
+                        movzx       rcx,cx
+                        test        rcx,rcx
+                        jz          .skipcopy
+                        rep         movsb
+                        ; write decimal point then remaining digits
+.skipcopy               xchg        cx,dx
+                        movzx       rcx,cx
+                        test        rcx,rcx
+                        jz          .shiftdone
+                        mov         al,'.'
+                        stosb
+                        rep         movsb
+                        jmp         .shiftdone
+                        ; integral number (no fraction intended)
+                        ; dx > cx, fillcnt = dx - cx
+.fillzero               sub         dx,cx
+                        ; copy remaining digits
+                        movzx       rcx,cx
+                        rep         movsb
+                        ; then fill with zeroes
+                        movzx       rcx,dx
+                        mov         al,'0'
+                        rep         stosb
+                        jmp         .shiftdone
+                        ; no shift: copy result over
+.noshift                inc         rcx     ; increase b/c of dot
+.copy                   lodsb
+                        cmp         al,0
+                        je          .copydone
+                        stosb
+                        loop        .copy
+                        ; if the last character written was a '.', delete it
+.copydone               cmp         byte [rdi-1],'.'
+                        jne         .shiftdone
+                        mov         byte [rdi-1],0
+                        ; after shifting the number around, examine exponent
+                        ; (not done in this implementation, see C code)
+.shiftdone              nop
+                        ; now, finally, write terminating NUL byte
+.complete               xor         al,al
+                        stosb
+                        ret
+
+                        ; fix up exponent (also generates new output)
+                        ; ( target source maxdig totdig pexp )
+                        DEFASM  "FIXUPEXP",FIXUPEXP,0
+                        ;   rdi - pointer to target buffer (char*)
+                        ;   rsi - pointer to source buffer (const char*)
+                        ;   rdx - maximum number of digits
+                        ;   rcx - total number of digits
+                        ;   r8  - pointer to exponent (int16_t*)
+                        mov     r9,r8   ; save r8
+                        CHKUNF  5
+                        mov     r8,r9   ; restore r8
+                        mov     rdi,[r15+32]    ; target buffer
+                        mov     rsi,[r15+24]    ; source buffer
+                        mov     rdx,[r15+16]    ; max digits
+                        mov     rcx,[r15+8]     ; total digits
+                        mov     r8,[r15]        ; pointer to exponent
+                        call    _fixupexp
+                        NEXT
+
+                        ; truncate number towards zero
+                        ; ( n -- n )
+                        DEFASM  "FTRUNC",FTRUNC,0
+                        CHKUNF  1
+                        fld     qword [r15]
+                        push    rax
+                        ; set rounding towards zero
+                        fstcw   word [rsp]
+                        mov     ax,[rsp]
+                        and     ax,0xf3ff
+                        or      ax,0x0c00   ; round towards zero (RC=0b11)
+                        mov     word [rsp+2],ax
+                        fldcw   word [rsp+2]
+                        ; round the number to integer (towards zero)
+                        frndint
+                        ; restore rounding mode
+                        fldcw   word [rsp]
+                        pop     rax
+                        fstp    qword [r15]
+                        NEXT
+
+                        align   32
+
+                        ; convert a digit value to a text character
+                        ;   rax - digit
+                        ; output:
+                        ;   rax - char
+_dig2chr                movzx   rax,al
+                        cmp     al,9
+                        ja      .geten
+                        add     al,'0'
+                        jmp     .end
+.geten                  sub     al,10
+                        add     al,'A'
+.end                    ret
+
+                        ; convert a digit value to a text character
+                        ; (ignores the current number base)
+                        ; ( digitval -- textchar )
+                        DEFASM  "DIG2CHR",DIG2CHR,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        call    _dig2chr
+                        mov     [r15],rax
+                        NEXT
+
+                        ; stores a digit at the specified address
+                        ; then increases that address, as long as the
+                        ; address is smaller than the provided limit
+                        ; ( limit addr digit -- limit addr )
+                        DEFASM  "DIG!",STOREDIG,0
+                        CHKUNF  3
+                        mov     rsi,[r15+16]
+                        mov     rdi,[r15+8]
+                        mov     rax,[r15]
+                        add     r15,8
+                        call    _dig2chr
+                        cmp     rdi,rsi
+                        jae     .dontstore
+                        cld
+                        stosb
+                        mov     [r15],rdi   ; store new addr
+.dontstore              NEXT
+
+                        ; stores a dot at the specified address
+                        ; then increases that address, as long as the
+                        ; address is smaller than the provided limit
+                        ; ( limit addr -- limit addr )
+                        DEFASM  "DOT!",STOREDOT,0
+                        CHKUNF  2
+                        mov     rsi,[r15+8]
+                        mov     rdi,[r15]
+                        cmp     rdi,rsi
+                        jae     .dontstore
+                        cld
+                        mov     al,'.'
+                        stosb
+                        mov     [r15],rdi   ; store new addr
+.dontstore              NEXT
+
+                        ; store digits from a floating-point number
+                        ; that is in normalized form (i.e. with one leading
+                        ; digit at most) using the current number base (BASE).
+                        ; ( maxdig first limit addr data )
+                        DEFCOL  "DIGITS!",STOREDIGITS,0
+                        ; set first to TRUE
+                        dq      LIT,4,ROLL,DROP,LIT,-1  ; 4 ROLL DROP -1
+                        dq      LIT,-4,ROLL             ; -4 ROLL
+                        ; ( maxdig first limit addr data )
+.nextchr                dq      LIT,5,PICK,LTZEROINT    ; 5 PICK <=0
+                        dq      CONDJUMP,.stop          ; ?JUMP[.stop]
+                        ; ( maxdig first limit addr data )
+                        ; decrement maxdig
+                        dq      LIT,5,ROLL,SUBONE       ; 5 ROLL 1-
+                        dq      LIT,-5,ROLL             ; -5 ROLL
+                        ; ( maxdig first limit addr data )
+                        dq      DUP,FTRUNC,PUSHBASE,FETCH ; DUP FTRUNC BASE @
+                        ; ( maxdig first limit addr data truncdata base )
+                        dq      I2F,MODFLT,F2I          ; I2F FMOD F2I
+                        ; ( maxdig first limit addr data digit )
+                        dq      SWAP                    ; SWAP
+                        ; ( maxdig first limit addr digit data )
+                        dq      LIT,-6,ROLL             ; -6 ROLL
+                        ; ( data maxdig first limit addr digit )
+                        dq      STOREDIG                ; DIG!
+                        ; ( data maxdig first limit addr )
+                        ; test 'first' flag
+                        dq      LIT,3,PICK,BINNOT       ; 4 PICK NOT
+                        dq      CONDJUMP,.skip          ; ?JUMP[.skip]
+                        ; first digit: clear first flag
+                        dq      ROT                     ; ROT
+                        ; ( data maxdig limit addr flag )
+                        dq      BINNOT                  ; NOT
+                        dq      LIT,-3,ROLL             ; -3 ROLL
+                        ; ( data maxdig flag limit addr )
+                        ; first digit: store dot
+                        dq      STOREDOT                ; DOT!
+                        ; ( data maxdig first limit addr )
+                        ; multiply data by BASE
+.skip                   dq      LIT,5,ROLL              ; 5 ROLL
+                        ; ( maxdig first limit addr data )
+                        dq      PUSHBASE,FETCH,I2F      ; BASE @ I2F
+                        dq      MULFLT                  ; F*
+                        dq      LIT,-5,ROLL             ; -5 ROLL
+                        dq      JUMP,.nextchr           ; JUMP[.nextchr]
+.stop                   dq      EXIT
 
                         section .rodata
 
