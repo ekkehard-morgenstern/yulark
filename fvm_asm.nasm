@@ -1806,6 +1806,9 @@ _fpowl                  push    rsi
                         ; ( defptr )
                         dq      EXIT
 
+                        section .text
+                        align   32
+
                         ; check number base (BASE)
                         ;
 _checkbase              mov     rax,[rbp-BASE]
@@ -3469,10 +3472,11 @@ _dig2chr                movzx   rax,al
                         mov     [r15],rdi   ; store new addr
 .dontstore              NEXT
 
-                        ; store digits from a floating-point number
+                        ; Store digits from a floating-point number
                         ; that is in normalized form (i.e. with one leading
                         ; digit at most) using the current number base (BASE).
-                        ; ( maxdig first limit addr data )
+                        ; Returns the number of bytes remaining in the buffer.
+                        ; ( maxdig first limit addr data -- remain )
                         DEFCOL  "DIGITS!",STOREDIGITS,0
                         ; set first to TRUE
                         dq      LIT,4,ROLL,DROP,LIT,-1  ; 4 ROLL DROP -1
@@ -3496,14 +3500,14 @@ _dig2chr                movzx   rax,al
                         dq      STOREDIG                ; DIG!
                         ; ( data maxdig first limit addr )
                         ; test 'first' flag
-                        dq      LIT,3,PICK,BINNOT       ; 4 PICK NOT
+                        dq      LIT,3,PICK,BINNOT       ; 3 PICK NOT
                         dq      CONDJUMP,.skip          ; ?JUMP[.skip]
                         ; first digit: clear first flag
                         dq      ROT                     ; ROT
-                        ; ( data maxdig limit addr flag )
+                        ; ( data maxdig limit addr first )
                         dq      BINNOT                  ; NOT
                         dq      LIT,-3,ROLL             ; -3 ROLL
-                        ; ( data maxdig flag limit addr )
+                        ; ( data maxdig first limit addr )
                         ; first digit: store dot
                         dq      STOREDOT                ; DOT!
                         ; ( data maxdig first limit addr )
@@ -3512,9 +3516,17 @@ _dig2chr                movzx   rax,al
                         ; ( maxdig first limit addr data )
                         dq      PUSHBASE,FETCH,I2F      ; BASE @ I2F
                         dq      MULFLT                  ; F*
-                        dq      LIT,-5,ROLL             ; -5 ROLL
                         dq      JUMP,.nextchr           ; JUMP[.nextchr]
-.stop                   dq      EXIT
+                        ; ( maxdig first limit addr data )
+.stop                   dq      DROP                    ; DROP
+                        ; ( maxdig first limit addr )
+                        dq      SUBINT                  ; -
+                        ; ( maxdig first remain )
+                        dq      LIT,-3,ROLL             ; -3 ROLL
+                        ; ( remain maxdig first )
+                        dq      TWODROP                 ; 2DROP
+                        ; ( remain )
+                        dq      EXIT
 
                         section .rodata
 
