@@ -27,6 +27,7 @@
                         section     .text
 
                         global      nearest,restore,extract2,extract10,roundint
+                        global      fixupexp
 
                         ; switch FPU to round-to-nearest mode
                         ; return previous mode
@@ -170,5 +171,147 @@ roundint                sub         rsp,8
                         add         rsp,8
                         ret
                         
+                        ; fix up exponent (also generates new output)
+                        ; (algorithm taken from my other project "AsmBASIC",
+                        ; module toknum.nasm, function detok_wrnum())
+                        ;   rdi - pointer to target buffer (char*)
+                        ;   rsi - pointer to source buffer (const char*)
+                        ;   rdx - maximum number of digits
+                        ;   rcx - total number of digits
+                        ;   r8  - pointer to exponent (int16_t*)
+                        ; get exponent shift
+fixupexp                mov         ax,[r8]
+                        mov         r9,rdx      ; save maximum number of digits
+                        ; check to see if it's zero, positive or negative
+                        cmp         ax,0
+                        je          .noshift
+                        jg          .exppos
+                        ; exp is negative
+; what we want here is:
+;   1.23 (e-7)
+;  |h|    dl   |
+;   0.000000123
+; total leeway we have is MAXDEC - current number of digits
+                        sub         dx,cx
+                        cmp         dx,0
+                        je          .noshift
+                        ; compare exponent against that
+                        neg         ax
+                        cmp         ax,dx
+                        jle         .neglessmax
+                        mov         ax,dx   ; limit to dx
+                        jmp         .negshift
+.neglessmax             mov         dx,ax   ; limit to ax
+                        ; reduce exponent by amount
+.negshift               sub         ax,dx
+                        neg         ax
+                        mov         [r8],ax ; store new exponent
+                        ; dx contains the number of zeros before
+                        ; the actual digits, the first one being
+                        ; the one before the decimal point.
+                        mov         al,'0'
+                        stosb
+                        mov         al,'.'
+                        stosb
+                        mov         al,'0'
+.leadzero               dec         dl
+                        jz          .endlead
+                        stosb
+                        jmp         .leadzero
+                        ; now output the remaining digits
+.endlead                movzx       rcx,cx
+.endlead2               lodsb
+                        cmp         al,'.'
+                        je          .endlead2
+                        stosb
+                        loop        .endlead2
+                        jmp         .shiftdone
+                        ; exponent is positive
+; what we want here is:
+;   1.23 (e+7)
+;  |h|    dl   |
+;   12300000
+.exppos                 mov         rdx,r9  ; maximum number of digits
+                        ; compare exponent against that
+                        cmp         ax,dx
+                        jle         .lessmax
+                        mov         dx,cx   ; limit to cx
+                        jmp         .shift
+.lessmax                mov         dx,ax   ; limit to ax
+                        ; reduce exponent by amount
+.shift                  sub         ax,dx
+                        mov         [r8],ax ; store new exponent
+                        ; dx contains the number of digits
+                        ; either fetched from after the decimal point
+                        ; or added as zeroes to the end
+                        movzx       rcx,cx
+                        ; first, copy the leading digits straight over
+.fetchloop              lodsb
+                        cmp         al,'.'
+                        je          .gotdp
+                        cmp         al,'0'
+                        je          .skipfetch
+                        stosb
+.skipfetch              loop        .fetchloop
+                        ; finished before reaching a decimal point
+                        ; now add dx zeroes
+                        movzx       rcx,dx
+                        test        rcx,rcx
+                        jz          .shiftdone
+                        mov         al,'0'
+                        rep         stosb
+                        jmp         .shiftdone
+                        ; after decimal point
+                        ;   cx - available digits in buffer
+                        ;   dx - digits to go before decimal point
+.gotdp                  cmp         dx,cx
+                        jg          .fillzero
+                        ; dx <= cx
+                        ; copy digits to write before decimal point
+                        sub         cx,dx
+                        xchg        cx,dx
+                        movzx       rcx,cx
+                        test        rcx,rcx
+                        jz          .skipcopy
+                        rep         movsb
+                        ; write decimal point then remaining digits
+.skipcopy               xchg        cx,dx
+                        movzx       rcx,cx
+                        test        rcx,rcx
+                        jz          .shiftdone
+                        mov         al,'.'
+                        stosb
+                        rep         movsb
+                        jmp         .shiftdone
+                        ; integral number (no fraction intended)
+                        ; dx > cx, fillcnt = dx - cx
+.fillzero               sub         dx,cx
+                        ; copy remaining digits
+                        movzx       rcx,cx
+                        rep         movsb
+                        ; then fill with zeroes
+                        movzx       rcx,dx
+                        mov         al,'0'
+                        rep         stosb
+                        jmp         .shiftdone
+                        ; no shift: copy result over
+.noshift                inc         rcx     ; increase b/c of dot
+.copy                   lodsb
+                        cmp         al,0
+                        je          .copydone
+                        stosb
+                        loop        .copy
+                        ; if the last character written was a '.', delete it
+.copydone               cmp         byte [rdi-1],'.'
+                        jne         .shiftdone
+                        mov         byte [rdi-1],0
+                        ; after shifting the number around, examine exponent
+                        ; (not done in this implementation, see C code)
+.shiftdone              nop
+                        ; now, finally, write terminating NUL byte
+.complete               xor         al,al
+                        stosb
+                        ret
+
                         section     .note.GNU-stack
 

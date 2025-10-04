@@ -99,6 +99,64 @@ static void outputmantissa( char* buf, size_t bufsz, size_t* ppos,
     *ppos = pos;
 }
 
+static void countdigits( const char* buf, size_t endpos, 
+    bool* phasdot, size_t* pbefore, size_t* pafter ) {
+    bool hasdot = false; size_t before = 0, after = 0;
+    for ( size_t i=0; i < endpos; ++i ) {
+        char c = buf[i];
+        if ( !hasdot ) {
+            if ( c == '.' ) {
+                hasdot = true;
+            } else {
+                ++before;
+            }
+        } else {
+            ++after;
+        }
+    }
+    *phasdot = hasdot;
+    *pbefore = before;
+    *pafter  = after;
+}
+
+extern void fixupexp( char* target, const char* source, size_t maxdigits,
+    size_t total, int16_t* pexp );
+
+static void outexp( char* buf2, size_t bufsz2, size_t* ppos2, int base, 
+    int val ) {
+    size_t pos2 = *ppos2;
+    if ( val >= base ) outexp( buf2, bufsz2, &pos2, base, val / base );
+    int dig = val % base;
+    int chr = baseddigit( base, dig );
+    if ( bufsz2-1U ) buf2[pos2++] = (int) chr;
+    *ppos2 = pos2;
+}
+
+static void fixexponent( char* buf2, size_t bufsz2, size_t* ppos2, 
+    const char* buf, size_t endpos, bool hasdot, size_t before, size_t after, 
+    int maxdig, int16_t* pexpb2i, int base, bool sign ) {
+    size_t pos2 = *ppos2;
+    size_t total = before + after;
+    if ( sign ) buf2[pos2++] = '-';
+    fixupexp( &buf2[pos2], buf, (size_t) maxdig, total, pexpb2i );
+    // output based exponent field
+    int16_t exp = *pexpb2i;
+    if ( exp == INT16_C(0) ) return; // not necessary
+    pos2 = strlen( buf2 );
+    if ( base > 10 ) {  // for bases > 10, don't use E, use '
+        if ( bufsz2-1U ) buf2[pos2++] = '\'';
+    } else {
+        if ( bufsz2-1U ) buf2[pos2++] = 'E';
+    }
+    if ( exp < INT16_C(0) ) {
+        if ( bufsz2-1U ) buf2[pos2++] = '-';
+        exp = -exp;
+    }
+    outexp( buf2, bufsz2, &pos2, base, exp );
+    buf2[pos2] = '\0';
+    *ppos2 = pos2;
+}
+
 int main( int argc, char** argv ) {
 
     char buf[256];
@@ -111,6 +169,7 @@ int main( int argc, char** argv ) {
     printf( "d = %g, b = %d\n", d, b );
 
     bool s = signbit(d) ? true : false;
+    printf( "s = %s\n", (s?"true":"false") );
     d = fabs( d );
     if ( d == 0.0 ) {
         printf( "%s0\n", (s?"-":"") );
@@ -147,15 +206,29 @@ int main( int argc, char** argv ) {
 
     double logb2 = alog( b, 2 );
     double expb2 = exp2 * logb2;
-    int expb2i = (int) round( expb2 );
+    int16_t expb2i = (int16_t) round( expb2 );
     double expb2f = ( expb2 - expb2i ) / logb2;
     t = sig2 * pow( 2.0, expb2f );
     int maxdig = (int) round( alog( b, pow( 2, 52 ) ) );
-    printf( "t = %g, expb2i = %d, maxdig = %d\n", t, expb2i, maxdig );
+    printf( "t = %g, expb2i = %" PRId16 ", maxdig = %d\n", t, expb2i, 
+        maxdig );
 
     size_t pos = 0;
     outputmantissa( buf, 256U, &pos, t, b, maxdig );
     printf( "m = '%s'\n", buf );
+
+    bool hasdot = false; size_t before = 0, after = 0;
+    countdigits( buf, pos, &hasdot, &before, &after );
+    printf( "hasdot = %s, before = %zu, after = %zu\n", 
+        (hasdot?"true":"false"), before, after );
+
+    char buf2[256]; size_t pos2 = 0;
+    fixexponent( buf2, 256, &pos2, buf, pos, hasdot, before, after, maxdig,
+        &expb2i, b, s );
+
+    printf( "buf2 = \"%s\"\n", buf2 );
+
+
 
     return EXIT_SUCCESS;
 }
