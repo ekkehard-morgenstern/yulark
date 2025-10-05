@@ -24,5 +24,6 @@ Some of its features are:
 - Stack frame of FORTH context is comparatively small with currently 1032 bytes of storage (1032 for alignment purposes).
 - The whole FORTH nucleus has currently less than 4000 lines of well-documented assembly code and hand-compiled FORTH code.
 - No AI was used for implementation.
+- The provided test program "test_fvm" can be built and used to test/use the FORTH engine stand-alone, for debugging and other uses.
 
 The FORTH subsystem will only work on x86-64 CPUs or compatibles (which most of the modern desktop and server CPUs are). An on-chip FPU is required for using floating-point (most of the current CPUs have that).
