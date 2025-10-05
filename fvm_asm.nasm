@@ -4269,6 +4269,72 @@ _dig2chr                movzx   rax,al
                         dq      FLTEXAM,LIT,6,EQINT     ; FEXAM 6 =
                         dq      EXIT
 
+                        ; Writes a special string to output if the provided
+                        ; floating-point number is a special case, otherwise
+                        ; writes just the sign. Returns a boolean TRUE if its a
+                        ; finite normal number and the number itself. Returns
+                        ; a boolean FALSE otherwise, a number of 0.0
+                        ; ( number -- number bool )
+                        DEFCOL  "FSPEC.",FSPECDOT,0
+                        dq      DUP,FLTSIGN,BINNOT      ; DUP ?FSIGN NOT
+                        dq      CONDJUMP,.notneg        ; ?JUMP[.notneg]
+                        dq      LIT,.negtext,LIT,1,TYPEOUT ; [.negtext] 1 TYPE
+                        dq      FNEGATE
+                        dq      JUMP,.notneg            ; JUMP[.notneg]
+.negtext                db      "-"
+                        align   8
+.notneg                 dq      DUP,FLTISNORM,BINNOT    ; DUP ?FNORM NOT
+                        dq      CONDJUMP,.notnorm       ; ?JUMP[.notnorm]
+                        ; normal number, return TRUE
+                        dq      LIT,-1
+                        dq      EXIT
+.notnorm                dq      DUP,FLTISZERO,BINNOT    ; DUP ?FZERO NOT
+                        dq      CONDJUMP,.notzero       ; ?JUMP[.notzero]
+                        ; zero, output text
+                        dq      LIT,.zertext,LIT,2,TYPEOUT ; [.zertext] 2 TYPE
+                        dq      JUMP,.badend            ; JUMP[.badend]
+.zertext                db      "0 "
+                        align   8
+.notzero                dq      DUP,FLTISDEN,BINNOT     ; DUP ?FDEN NOT
+                        dq      CONDJUMP,.notden        ; ?JUMP[.notden]
+                        ; denormal, output text
+                        dq      LIT,.dentext,LIT,4,TYPEOUT ; [.dentext] 4 TYPE
+                        dq      JUMP,.badend            ; JUMP[.badend]
+.dentext                db      "den "
+                        align   8
+.notden                 dq      DUP,FLTISINF,BINNOT     ; DUP ?FINF NOT
+                        dq      CONDJUMP,.notinf        ; ?JUMP[.notinf]
+                        ; infinite, output text
+                        dq      LIT,.inftext,LIT,4,TYPEOUT ; [.inftext] 4 TYPE
+                        dq      JUMP,.badend            ; JUMP[.badend]
+.inftext                db      "inf "
+                        align   8
+.notinf                 dq      DUP,FLTISNAN,BINNOT     ; DUP ?FNAN NOT
+                        dq      CONDJUMP,.notnan        ; ?JUMP[.notnan]
+                        ; not a number, output text
+                        dq      LIT,.nantext,LIT,4,TYPEOUT ; [.nantext] 4 TYPE
+                        dq      JUMP,.badend            ; JUMP[.badend]
+.nantext                db      "nan "
+                        align   8
+.notnan                 dq      DUP,FLTISUNS,BINNOT     ; DUP ?FUNS NOT
+                        dq      CONDJUMP,.notuns        ; ?JUMP[.notuns]
+                        ; unsupported, output text
+                        dq      LIT,.unstext,LIT,4,TYPEOUT ; [.unstext] 4 TYPE
+                        dq      JUMP,.badend            ; JUMP[.badend]
+.unstext                db      "uns "
+                        align   8
+.notuns                 dq      DUP,FLTISEMPTY,BINNOT   ; DUP ?FEMP NOT
+                        dq      CONDJUMP,.notemp        ; ?JUMP[.notemp]
+                        ; empty, output text
+                        dq      LIT,.emptext,LIT,4,TYPEOUT ; [.unstext] 4 TYPE
+                        dq      JUMP,.badend            ; JUMP[.badend]
+.emptext                db      "emp "
+                        align   8
+.badend:                ; not a finite normal number
+.notemp                 dq      DROP,LIT,0.0,LIT,0      ; DROP 0.0 0
+                        dq      EXIT
+
+
                         section .rodata
 
                         align   8
