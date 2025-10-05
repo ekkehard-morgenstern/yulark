@@ -4212,7 +4212,7 @@ _dig2chr                movzx   rax,al
                         ; returns the sign of the provided floating-point number
                         ; TRUE means negative, FALSE means positive
                         ; ( number -- bool )
-                        DEFASM  "FSIGN",FLTSIGN,0
+                        DEFASM  "?FSIGN",FLTSIGN,0
                         CHKUNF  1
                         fld     qword [r15]
                         fxam
