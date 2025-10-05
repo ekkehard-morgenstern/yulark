@@ -4099,10 +4099,32 @@ _dig2chr                movzx   rax,al
                         dq      LIT,3,ROLL                  ; 3 ROLL
                         ; ( tlimit taddr exponent )
                         ; check exponent again: if negative, store a minus
-                        ; ... TBD ...
-
-
-
+                        dq      DUP,LTZEROINT,BINNOT        ; DUP <0 NOT
+                        dq      CONDJUMP,.notminus          ; ?JUMP[.notminus]
+                        ; ( tlimit taddr exponent )
+                        ; rotate stack to get exponent to the bottom
+                        dq      LIT,-3,ROLL                 ; -3 ROLL
+                        ; ( exponent tlimit taddr )
+                        ; check if there's room to store the minus
+                        dq      SWAP,TWODUP,UGEINT       ; SWAP 2DUP U>=
+                        dq      CONDJUMP,.bufferfull2    ; ?JUMP[.bufferfull2]
+                        ; store the minus
+                        dq      SWAP
+                        ; ( exponent tlimit taddr )
+                        dq      STOREMINUS              ; MINUS!
+                        ; bring the exponent back to the front
+                        dq      ROT                     ; ROT
+                        ; ( tlimit taddr exponent )
+                        ; negate the exponent to make it positive
+                        dq      NEGATE                  ; NEG
+                        ; ( tlimit taddr exponent )
+                        ; output the exponent's value
+.notminus               dq      OUTEXP                  ; OUTEXP
+                        ; ( tlimit taddr )
+                        ; subtract taddr - tlimit to get tremain
+                        dq      SWAP,SUBINT             ; SWAP -
+                        ; ( tremain )
+                        ; done
                         dq      EXIT
                         ; ( exponent taddr tlimit )
                         ; buffer is full, can't write exponent indicator
@@ -4141,7 +4163,93 @@ _dig2chr                movzx   rax,al
                         ; done
                         dq      EXIT
 
+                        ; issues the CPU's FXAM command on the provided
+                        ; floating-point value, and returns the resulting status
+                        ; bits as an integer with the low 3 bits set to the
+                        ; status bits C3, C2 and C0.
+                        ;
+                        ; The table of result values is as follows:
+                        ;
+                        ;  dec | C3 | C2 | C0 | description
+                        ; -----+----+----+----+--------------------------------
+                        ;   0  |  0 |  0 |  0 | Unsupported
+                        ;   1  |  0 |  0 |  1 | NaN
+                        ;   2  |  0 |  1 |  0 | Normal finite
+                        ;   3  |  0 |  1 |  1 | Infinity
+                        ;   4  |  1 |  0 |  0 | Zero
+                        ;   5  |  1 |  0 |  1 | Empty
+                        ;   6  |  1 |  1 |  0 | Denormal
+                        ;   7  |  1 |  1 |  1 |
+                        ;
+                        ; ( number -- result )
+                        DEFASM  "FEXAM",FLTEXAM,0
+                        CHKUNF  1
+                        fld     qword [r15]
+                        fxam
+                        fstsw   ax          ; get status word
+                        ffree   st0
+                        fincstp
+                        and     ax,0x4500       ; C3 C2 C0
+                        shr     ax,8
+                        ; - C3 - -  - C2 - C0
+                        mov     dl,al
+                        and     al,0x01         ; C0
+                        ; - - - -  - - - C0
+                        mov     cl,dl
+                        and     cl,0x04         ; C2
+                        shr     cl,1
+                        or      al,cl
+                        ; - - - -  - - C2 C0
+                        mov     cl,dl
+                        and     cl,0x40         ; C3
+                        shr     cl,4
+                        or      al,cl
+                        ; - - - -  - C3 C2 C0
+                        movzx   rax,ax
+                        mov     [r15],rax
+                        NEXT
 
+                        ; checks if floating point number is unsupported
+                        ; ( number -- bool )
+                        DEFCOL  "?FUNS",FLTISUNS,0
+                        dq      FLTEXAM,EQZEROINT       ; FEXAM =0
+                        dq      EXIT
+
+                        ; checks if floating point number is not a number
+                        ; ( number -- bool )
+                        DEFCOL  "?FNAN",FLTISNAN,0
+                        dq      FLTEXAM,LIT,1,EQINT     ; FEXAM 1 =
+                        dq      EXIT
+
+                        ; checks if floating point number is normal finite
+                        ; ( number -- bool )
+                        DEFCOL  "?FNORM",FLTISNORM,0
+                        dq      FLTEXAM,LIT,2,EQINT     ; FEXAM 2 =
+                        dq      EXIT
+
+                        ; checks if floating point number is infinite
+                        ; ( number -- bool )
+                        DEFCOL  "?FINF",FLTISINF,0
+                        dq      FLTEXAM,LIT,3,EQINT     ; FEXAM 3 =
+                        dq      EXIT
+
+                        ; checks if floating point number is zero
+                        ; ( number -- bool )
+                        DEFCOL  "?FZERO",FLTISZERO,0
+                        dq      FLTEXAM,LIT,4,EQINT     ; FEXAM 4 =
+                        dq      EXIT
+
+                        ; checks if floating point number is empty
+                        ; ( number -- bool )
+                        DEFCOL  "?FEMP",FLTISEMPTY,0
+                        dq      FLTEXAM,LIT,5,EQINT     ; FEXAM 5 =
+                        dq      EXIT
+
+                        ; checks if floating point number is denormal
+                        ; ( number -- bool )
+                        DEFCOL  "?FDEN",FLTISDEN,0
+                        dq      FLTEXAM,LIT,6,EQINT     ; FEXAM 6 =
+                        dq      EXIT
 
                         section .rodata
 
