@@ -4209,6 +4209,24 @@ _dig2chr                movzx   rax,al
                         mov     [r15],rax
                         NEXT
 
+                        ; returns the sign of the provided floating-point number
+                        ; TRUE means negative, FALSE means positive
+                        ; ( number -- bool )
+                        DEFASM  "FSIGN",FLTSIGN,0
+                        CHKUNF  1
+                        fld     qword [r15]
+                        fxam
+                        fstsw   ax          ; get status word
+                        ffree   st0
+                        fincstp
+                        and     ax,0x0200      ; C1
+                        shr     ax,9
+                        ; - - - -  - - - C1
+                        neg     ax
+                        movsx   rax,ax
+                        mov     [r15],rax
+                        NEXT
+
                         ; checks if floating point number is unsupported
                         ; ( number -- bool )
                         DEFCOL  "?FUNS",FLTISUNS,0
