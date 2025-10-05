@@ -3813,6 +3813,93 @@ _dig2chr                movzx   rax,al
                         ; finished
                         NEXT
 
+                        ; Normally, during compilation, the most recently
+                        ; defined word is hidden, so a previous declaration
+                        ; of the same word can be referenced.
+                        ; However, sometimes you might want NOT to hide the
+                        ; word to be able to implement recursion.
+                        DEFCOL  "UNHIDE",UNHIDE,F_IMMEDIATE
+                        dq      TOLATEST,FETCH      ; >LATEST @
+                        ; ( defaddr )
+                        ; get namelength/flags byte
+                        dq      DUP,LIT,8,ADDINT    ;   DUP 8 +
+                        ; ( defaddr addr )
+                        dq      DUP,CHARFETCH       ;   DUP C@
+                        ; ( defptr addr char )
+                        dq      LIT,F_HIDDEN,BINNOT ; [F_HIDDEN] NOT
+                        dq      BINAND              ; AND
+                        ; ( defptr addr char )
+                        dq      SWAP,CHARSTORE      ; SWAP C!
+                        ; ( defptr )
+                        dq      DROP                ; DROP
+                        dq      EXIT
+
+                        ; inverse of UNHIDE: restore F_HIDDEN state
+                        DEFCOL  "HIDE",HIDE,F_IMMEDIATE
+                        dq      TOLATEST,FETCH      ; >LATEST @
+                        ; ( defaddr )
+                        ; get namelength/flags byte
+                        dq      DUP,LIT,8,ADDINT    ;   DUP 8 +
+                        ; ( defaddr addr )
+                        dq      DUP,CHARFETCH       ;   DUP C@
+                        ; ( defptr addr char )
+                        dq      LIT,F_HIDDEN,BINOR  ; [F_HIDDEN] OR
+                        ; ( defptr addr char )
+                        dq      SWAP,CHARSTORE      ; SWAP C!
+                        ; ( defptr )
+                        dq      DROP                ; DROP
+                        dq      EXIT
+
+                        ; output integral exponent using recursion
+                        ; ( limit addr value -- limit addr )
+                        DEFCOL  "OUTEXP",OUTEXP,0
+                        dq      DUP,PUSHBASE,FETCH,GEINT ; DUP BASE @ >=
+                        dq      CONDJUMP,.recurse       ; ?JUMP[.recurse]
+                        ; ( limit addr value )
+                        ; value is smaller than BASE
+.store                  dq      DIG2CHR                 ; DIG2CHR
+                        ; ( limit addr char )
+                        ; see if there's room in buffer left
+                        dq      LIT,-3,ROLL             ; -3 ROLL
+                        ; ( char limit addr )
+                        dq      SWAP,TWODUP,UGEINT      ; SWAP 2DUP U>=
+                        dq      CONDJUMP,.dontstore     ; ?JUMP[.dontstore]
+                        ; ( char addr limit )
+                        dq      SWAP,ROT                ; SWAP ROT
+                        ; ( limit addr char )
+                        dq      OVER,CHARSTORE          ; C!
+                        ; ( limit addr )
+                        dq      ADDONE                  ; 1+
+                        ; done
+                        dq      EXIT
+                        ; ( char addr limit )
+.dontstore              dq      SWAP,ROT                ; SWAP ROT
+                        ; ( limit addr char )
+                        dq      DROP
+                        ; ( limit addr )
+                        ; finished
+                        dq      EXIT
+                        ; ( limit addr value )
+                        ; value >= BASE, divide and recurse
+                        ; create backup copy of value
+.recurse                dq      LIT,-3,ROLL             ; -3 ROLL
+                        ; ( value limit addr )
+                        dq      LIT,3,PICK              ; 3 PICK
+                        ; ( value limit addr value )
+                        ; divide by BASE
+                        dq      PUSHBASE,FETCH,DIVINT   ; BASE @ /
+                        ; ( value limit addr value )
+                        ; call ourselves, which will eat the value
+                        dq      OUTEXP                  ; OUTEXP
+                        ; ( value limit addr )
+                        ; get the value backup to the front
+                        dq      ROT                     ; ROT
+                        ; ( limit addr value )
+                        ; do a modulo operation with BASE
+                        dq      PUSHBASE,FETCH,MODINT   ; BASE @ MOD
+                        ; ( limit addr digit )
+                        dq      JUMP,.store             ; JUMP[.store]
+
                         section .rodata
 
                         align   8

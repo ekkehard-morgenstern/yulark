@@ -19,6 +19,7 @@ Some of its features are:
 - Large nucleus word set
 - Now has CALLC for calling arbitrary C functions conforming to the x86-64 SYSV ABI specification. However, passing of arguments in XMM registers is NOT supported, which precludes direct passing of floating-point parameters. Nonetheless, this allows for the usage of many, if not most, C library or user-defined functions. Supports variable argument lists of arbitrary length.
 - Operations meant for defining words like ALLOT aren't allowed in regular word definitions.
+- Now has UNHIDE immediate word to permit recursion when using the compiler (i.e. during word definitions). The current definition will not be hidden anymore (which is usually done to be able to reference previous definitions of the same word). HIDE can be used to hide it again.
 - Bounds checking for parameter and return stack pointers (bounds checking for the dictionary pointer is yet to be implemented).
 - Uses not a single global variable, thus suitable for multithread execution (with each FORTH instance in its own thread with its own memory).
 - Stack frame of FORTH context is comparatively small with currently 1032 bytes of storage (1032 for alignment purposes).
