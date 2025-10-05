@@ -85,8 +85,12 @@ fvm_run                 enter   0x408,0     ; 768 bytes of local storage
 %define RSTKUPR         0x150
                         ; rbp-0x158     return stack lower bound
 %define RSTKLWR         0x158
-
-; ...
+                        ; rbp-0x160     stack pointer before CALLC
+%define CALLSTKP        0x160
+                        ; rbp-0x168     address of C function for CALLC
+%define CALLADDR        0x168
+                        ; rbp-0x170     number of arguments to CALLC
+%define CALLARGS        0x170
                         ; rbp-0x178     address origin (used by DSEQNCONV)
 %define ADDRESS0        0x178
                         ; rbp-0x180     RSP reset address
@@ -3238,9 +3242,9 @@ fvm_douser              CHKOVF  1
                         ;   rsi - pointer to source buffer (const char*)
                         ;   rdx - maximum number of digits
                         ;   rcx - total number of digits
-                        ;   r8  - pointer to exponent (int16_t*)
+                        ;   r8  - exponent
                         ; get exponent shift
-_fixupexp               mov         ax,[r8]
+_fixupexp               mov         rax,r8
                         mov         r9,rdx      ; save maximum number of digits
                         ; check to see if it's zero, positive or negative
                         cmp         ax,0
@@ -3265,7 +3269,8 @@ _fixupexp               mov         ax,[r8]
                         ; reduce exponent by amount
 .negshift               sub         ax,dx
                         neg         ax
-                        mov         [r8],ax ; store new exponent
+                        movsx       rax,ax
+                        mov         r8,rax ; store new exponent
                         ; dx contains the number of zeros before
                         ; the actual digits, the first one being
                         ; the one before the decimal point.
@@ -3300,7 +3305,8 @@ _fixupexp               mov         ax,[r8]
 .lessmax                mov         dx,ax   ; limit to ax
                         ; reduce exponent by amount
 .shift                  sub         ax,dx
-                        mov         [r8],ax ; store new exponent
+                        movsx       rax,ax
+                        mov         r8,rax ; store new exponent
                         ; dx contains the number of digits
                         ; either fetched from after the decimal point
                         ; or added as zeroes to the end
@@ -3374,22 +3380,22 @@ _fixupexp               mov         ax,[r8]
                         ret
 
                         ; fix up exponent (also generates new output)
-                        ; ( target source maxdig totdig pexp )
+                        ; ( target source maxdig totdig exp -- exp )
                         DEFASM  "FIXUPEXP",FIXUPEXP,0
                         ;   rdi - pointer to target buffer (char*)
                         ;   rsi - pointer to source buffer (const char*)
                         ;   rdx - maximum number of digits
                         ;   rcx - total number of digits
-                        ;   r8  - pointer to exponent (int16_t*)
-                        mov     r9,r8   ; save r8
+                        ;   r8  - exponent
                         CHKUNF  5
-                        mov     r8,r9   ; restore r8
                         mov     rdi,[r15+32]    ; target buffer
                         mov     rsi,[r15+24]    ; source buffer
                         mov     rdx,[r15+16]    ; max digits
                         mov     rcx,[r15+8]     ; total digits
-                        mov     r8,[r15]        ; pointer to exponent
+                        mov     r8,[r15]        ; current exponent
                         call    _fixupexp
+                        add     r15,24
+                        mov     [r15],r8        ; store new exponent
                         NEXT
 
                         ; truncate number towards zero
@@ -3665,6 +3671,147 @@ _dig2chr                movzx   rax,al
 .stop                   dq      SUBINT              ; -
                         ; ( length )
                         dq      EXIT
+
+                        ; count digits before and after optional decimal point
+                        ; ( start addr -- start addr hasdot before after )
+                        DEFCOL  "COUNTDIG",COUNTDIG,0
+                        dq      LIT,0,LIT,0,LIT,0   ; 0 0 0
+                        ; ( start addr hasdot before after )
+.next                   dq      LIT,5,DUP,ROLL,ROLL ; 5 DUP ROLL ROLL
+                        ; ( hasdot before after start addr )
+                        dq      SWAP,TWODUP,UGTINT  ; SWAP 2DUP U>
+                        dq      CONDJUMP,.end       ; ?JUMP[.end]
+                        dq      SWAP
+                        ; ( hasdot before after start addr )
+                        dq      DUP,CHARFETCH       ; DUP C@
+                        dq      LIT,'.',NEINT       ; '.' <>
+                        dq      CONDJUMP,.notdot    ; JUMP[.notdot]
+                        ; dot
+                        dq      LIT,5,ROLL,DROP,LIT,-1 ; 5 ROLL DROP -1
+                        ; ( before after start addr hasdot )
+                        dq      LIT,-5,ROLL         ; -5 ROLL
+                        ; ( hasdot before after start addr )
+                        dq      LIT,-5,DUP,ROLL,ROLL ; -5 DUP ROLL ROLL
+                        ; ( start addr hasdot before after )
+                        dq      JUMP,.next          ; JUMP[.next]
+                        ; ( start addr hasdot before after )
+.notdot                 dq      LIT,3,PICK          ; 3 PICK
+                        dq      CONDJUMP,.hasdot    ; ?JUMP[.hasdot]
+                        ; ( start addr hasdot before after )
+                        ; no dot yet: increase before
+                        dq      SWAP,ADDONE,SWAP    ; SWAP 1+ SWAP
+                        dq      JUMP,.next          ; JUMP[.next]
+                        ; ( start addr hasdot before after )
+                        ; has dot: increase after
+.hasdot                 dq      ADDONE              ; 1+
+                        dq      JUMP,.next          ; JUMP[.next]
+                        ; ( hasdot before after addr start )
+.end                    dq      SWAP                ; SWAP
+                        ; ( hasdot before after start addr )
+                        dq      LIT,-5,DUP,ROLL,ROLL ; -5 DUP ROLL ROLL
+                        ; ( start addr hasdot before after )
+                        dq      EXIT
+
+                        ; call C function
+                        ; NOTES:
+                        ;   - passing of floating-point arguments
+                        ;     in XMM registers is NOT supported
+                        ;   - if you do need to pass floating-point arguments
+                        ;     put them in a data structure and pass a pointer
+                        ;     to them
+                        ;   - see abinotes.txt for information about
+                        ;     C calling conventions in 64-bit mode
+                        ;   - some C functions crash if the stack pointer isn't
+                        ;     aligned on 32-byte boundary before the call
+                        ;     instruction (the reason is they use aligned
+                        ;     memory access instructions like MOVDQA)
+                        ;     hence, I align for that instead of just 16 bytes
+                        ;     as noted in the ABI documentation.
+                        ; ( ... nargs func -- result )
+                        ;   nargs - number of regular arguments (ptr,int)
+                        ;   func  - address of C function
+                        DEFASM  "CALLC",CALLC,0
+                        CHKUNF  2
+                        ; save stack pointer
+                        mov     [rbp-CALLSTKP],rsp
+                        ; pop func and nargs
+                        mov     rax,[r15]
+                        mov     [rbp-CALLADDR],rax
+                        mov     rax,[r15+8]
+                        mov     [rbp-CALLARGS],rax
+                        add     r15,16
+                        CHKUNF  rax
+                        ; adjust system stack pointer
+                        ; must be 32-byte aligned on call
+                        xor     rdx,rdx       ; stack args size
+                        cmp     rax,6
+                        jbe     .lesseqsix    ; are passed in regs
+                        mov     rdx,rax       ; rax-6 is stack count
+                        shl     rdx,3         ; * 8
+                        sub     rsp,rdx       ; reserve on stack
+.lesseqsix              sub     rsp,31        ; align to 32-byte boundary
+                        and     rsp,~31
+                        add     rsp,rdx       ; move up in stack for pushes
+                        ; pass args in prescribed registers
+                        ; (see abinotes.txt)
+                        test    rax,rax
+                        jz      .endargs
+                        lea     r11,[r15+rax*8]
+                        ; 1st parameter: rdi
+                        mov     rdi,[r11]
+                        sub     r11,8
+                        dec     rax
+                        jz      .endargs
+                        ; 2nd parameter: rsi
+                        mov     rsi,[r11]
+                        sub     r11,8
+                        dec     rax
+                        jz      .endargs
+                        ; 3rd parameter: rdx
+                        mov     rdx,[r11]
+                        sub     r11,8
+                        dec     rax
+                        jz      .endargs
+                        ; 4th parameter: rcx
+                        mov     rcx,[r11]
+                        sub     r11,8
+                        dec     rax
+                        jz      .endargs
+                        ; 5th parameter: r8
+                        mov     r8,[r11]
+                        sub     r11,8
+                        dec     rax
+                        jz      .endargs
+                        ; 6th parameter: r9
+                        mov     r9,[r11]
+                        sub     r11,8
+                        dec     rax
+                        jz      .endargs
+                        ; from 7th parameter: pass on stack
+.nextarg                mov     r10,[r11]
+                        sub     r11,8
+                        push    r10
+                        dec     rax
+                        jz      .endargs
+                        jmp     .nextarg
+                        ; end of argument list
+                        ; adjust parameter stack pointer
+.endargs                mov     rax,[rbp-CALLARGS]
+                        lea     r15,[r15+rax*8]
+                        ; set al to XMM register count
+                        ; (always zero here)
+                        xor     rax,rax
+                        ; call function
+                        mov     r10,[rbp-CALLADDR]
+                        call    r10
+                        ; restore stack pointer
+                        mov     rsp,[rbp-CALLSTKP]
+                        ; get result
+                        CHKOVF  1
+                        sub     r15,8
+                        mov     [r15],rax
+                        ; finished
+                        NEXT
 
                         section .rodata
 
