@@ -8,6 +8,7 @@ With a FORTH engine written in assembly language.
 I've recently begun this project to test some ideas.
 
 The FORTH subsystem is almost ready for use, but there's still some stuff missing.
+
 Some of its features are:
 - 64 bit integers in base 2 to 36, signed and unsigned arithmetic
 - 64 bit floating-point in base 2 to 36 (printing numbers in arbitrary base is still in the works, "F." is decimal only at the moment)
@@ -16,5 +17,6 @@ Some of its features are:
 - Written in x86-64 assembly code
 - Classic indirect threaded FORTH code model
 - Large nucleus word set
+- Now has CALLC for calling arbitrary C functions conforming to the x86-64 ABI specification. However, passing of arguments in XMM registers is NOT supported, which precludes direct passing of floating-point parameters. Nonetheless, this allows for the usage of many, if not most, C library or user-defined functions. Supports variable argument lists of arbitrary length.
 
 The FORTH subsystem will only work on x86-64 CPUs or compatibles (which most of the modern desktop and server CPUs are). An on-chip FPU is required for using floating-point (most of the current CPUs have that).
