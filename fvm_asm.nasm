@@ -3235,17 +3235,85 @@ fvm_douser              CHKOVF  1
                         section .text
                         align   32
 
+                        ; load a byte from [rsi] into al, incrementing rsi
+                        ; before doing that, check if rsi is equal or beyond r11
+                        ; the parameter specifies a label to jump to on failure
+                        %macro  LOADB 1
+                        cmp     rsi,r11
+                        jb      %%skip
+                        jmp     %1
+%%skip                  lodsb
+                        %endmacro
+
+                        ; store a byte from al into [rdi], incrementing rdi
+                        ; before doing that, check if rdi is equal or beyond r10
+                        %macro  STORB 0
+                        cmp     rdi,r10
+                        jae     %%skip
+                        stosb
+%%skip:
+                        %endmacro
+
+                        ; same as what REP LOADB would do
+                        %macro  REPLOADB 1
+%%next                  LOADB   %1
+                        loop    %%next
+                        %endmacro
+
+                        ; same as what REP STORB would do
+                        %macro  REPSTORB 0
+%%next                  STORB
+                        loop    %%next
+                        %endmacro
+
+                        ; equivalent to LOADB %1 followed by STORB
+                        %macro  MOVEB 1
+                        LOADB   %1
+                        STORB
+                        %endmacro
+
+                        ; equivalent to REP MOVEB
+                        %macro  REPMOVEB 1
+%%next                  MOVEB   %1
+                        loop    %%next
+                        %endmacro
+
                         ; fix up exponent (also generates new output)
                         ; (algorithm taken from my other project "AsmBASIC",
                         ; module toknum.nasm, function detok_wrnum())
+                        ;   rdi - pointer beyond end of target buffer (char*)
+                        ;   rsi - pointer to target buffer (char*)
+                        ;   rdx - pointer beyond end of source buffer
+                        ;         (const char*), this must mark the end of the
+                        ;         source string, not the capacity of the buffer
+                        ;   rcx - pointer to source buffer (const char*)
+                        ;   r8  - maximum number of digits
+                        ;   r9  - total number of digits
+                        ;   [rsp+8] - exponent
+                        ; output:
+                        ;   rax - number of bytes remaining in target buffer
+                        ;
+                        ; prepare arguments for remainder of code
+_fixupexp               mov         r10,rdi ; pointer beyond end of target
+                        mov         r11,rdx ; pointer beyond end of source
+                        mov         rdi,rsi ; pointer to target buffer
+                        mov         rsi,rcx ; pointer to source buffer
+                        mov         rdx,r8  ; maximum number of digits
+                        mov         rcx,r9  ; total number of digits
+                        mov         r8,[rsp+8] ; exponent
+                        ;
                         ;   rdi - pointer to target buffer (char*)
                         ;   rsi - pointer to source buffer (const char*)
                         ;   rdx - maximum number of digits
                         ;   rcx - total number of digits
                         ;   r8  - exponent
+                        ;   r10 - pointer beyond end of target buffer
+                        ;   r11 - pointer beyond end of source buffer
+                        ;
                         ; get exponent shift
-_fixupexp               mov         rax,r8
+                        mov         rax,r8
                         mov         r9,rdx      ; save maximum number of digits
+                        ;   r9  - backup of maximum number of digits
                         ; check to see if it's zero, positive or negative
                         cmp         ax,0
                         je          .noshift
@@ -3275,20 +3343,20 @@ _fixupexp               mov         rax,r8
                         ; the actual digits, the first one being
                         ; the one before the decimal point.
                         mov         al,'0'
-                        stosb
+                        STORB
                         mov         al,'.'
-                        stosb
+                        STORB
                         mov         al,'0'
 .leadzero               dec         dl
                         jz          .endlead
-                        stosb
+                        STORB
                         jmp         .leadzero
                         ; now output the remaining digits
 .endlead                movzx       rcx,cx
-.endlead2               lodsb
+.endlead2               LOADB       .shiftdone
                         cmp         al,'.'
                         je          .endlead2
-                        stosb
+                        STORB
                         loop        .endlead2
                         jmp         .shiftdone
                         ; exponent is positive
@@ -3312,20 +3380,20 @@ _fixupexp               mov         rax,r8
                         ; or added as zeroes to the end
                         movzx       rcx,cx
                         ; first, copy the leading digits straight over
-.fetchloop              lodsb
+.fetchloop              LOADB       .fetchend
                         cmp         al,'.'
                         je          .gotdp
                         cmp         al,'0'
                         je          .skipfetch
-                        stosb
+                        STORB
 .skipfetch              loop        .fetchloop
                         ; finished before reaching a decimal point
                         ; now add dx zeroes
-                        movzx       rcx,dx
+.fetchend               movzx       rcx,dx
                         test        rcx,rcx
                         jz          .shiftdone
                         mov         al,'0'
-                        rep         stosb
+                        REPSTORB
                         jmp         .shiftdone
                         ; after decimal point
                         ;   cx - available digits in buffer
@@ -3346,8 +3414,8 @@ _fixupexp               mov         rax,r8
                         test        rcx,rcx
                         jz          .shiftdone
                         mov         al,'.'
-                        stosb
-                        rep         movsb
+                        STORB
+                        REPMOVEB    .shiftdone
                         jmp         .shiftdone
                         ; integral number (no fraction intended)
                         ; dx > cx, fillcnt = dx - cx
@@ -3355,47 +3423,62 @@ _fixupexp               mov         rax,r8
                         ; copy remaining digits
                         movzx       rcx,cx
                         rep         movsb
+                        REPMOVEB    .filldo
                         ; then fill with zeroes
-                        movzx       rcx,dx
+.filldo                 movzx       rcx,dx
                         mov         al,'0'
-                        rep         stosb
+                        REPSTORB
                         jmp         .shiftdone
                         ; no shift: copy result over
 .noshift                inc         rcx     ; increase b/c of dot
-.copy                   lodsb
-                        cmp         al,0
-                        je          .copydone
-                        stosb
-                        loop        .copy
+                        ; copy: note that the source limit must point beyond
+                        ;       the end of the source string, or this fails
+                        REPMOVEB    .copydone
                         ; if the last character written was a '.', delete it
 .copydone               cmp         byte [rdi-1],'.'
                         jne         .shiftdone
-                        mov         byte [rdi-1],0
+                        dec         rdi
                         ; after shifting the number around, examine exponent
                         ; (not done in this implementation, see C code)
 .shiftdone              nop
-                        ; now, finally, write terminating NUL byte
-.complete               xor         al,al
-                        stosb
+                        ; normally, the code would write a terminating NUL byte,
+                        ; but since we don't need that in FORTH, we return the
+                        ; number of remaining bytes in the target buffer instead
+.complete               mov         rax,r10
+                        sub         rax,rdi
+                        ; also return new exponent
+                        mov         rdx,r8
                         ret
 
                         ; fix up exponent (also generates new output)
-                        ; ( target source maxdig totdig exp -- exp )
+                        ; ( tlimit taddr saddrend saddr maxdig totdig exp
+                        ;   -- tremain newexp )
                         DEFASM  "FIXUPEXP",FIXUPEXP,0
-                        ;   rdi - pointer to target buffer (char*)
-                        ;   rsi - pointer to source buffer (const char*)
-                        ;   rdx - maximum number of digits
-                        ;   rcx - total number of digits
-                        ;   r8  - exponent
-                        CHKUNF  5
-                        mov     rdi,[r15+32]    ; target buffer
-                        mov     rsi,[r15+24]    ; source buffer
-                        mov     rdx,[r15+16]    ; max digits
-                        mov     rcx,[r15+8]     ; total digits
-                        mov     r8,[r15]        ; current exponent
+                        ;48 rdi - pointer beyond end of target buffer (char*)
+                        ;40 rsi - pointer to target buffer (char*)
+                        ;32 rdx - pointer beyond end of source buffer
+                        ;         (const char*), this must mark the end of the
+                        ;         source string, not the capacity of the buffer
+                        ;24 rcx - pointer to source buffer (const char*)
+                        ;16 r8  - maximum number of digits
+                        ;8  r9  - total number of digits
+                        ;0  [rsp+8] - exponent
+                        ; output:
+                        ;   rax - number of bytes remaining in target buffer
+                        ;   rdx - new exponent
+                        CHKUNF  7
+                        mov     rdi,[r15+48]    ; target buffer limit
+                        mov     rsi,[r15+40]    ; target buffer
+                        mov     rdx,[r15+32]    ; source buffer endptr
+                        mov     rcx,[r15+24]    ; source buffer
+                        mov     r8,[r15+16]     ; max digits
+                        mov     r9,[r15+8]      ; total digits
+                        mov     rax,[r15]       ; current exponent
+                        push    rax
+                        add     r15,40
                         call    _fixupexp
-                        add     r15,24
-                        mov     [r15],r8        ; store new exponent
+                        mov     [r15+8],rax     ; store tremain
+                        mov     [r15],rdx       ; store new exponent
                         NEXT
 
                         ; truncate number towards zero
@@ -3899,6 +3982,17 @@ _dig2chr                movzx   rax,al
                         dq      PUSHBASE,FETCH,MODINT   ; BASE @ MOD
                         ; ( limit addr digit )
                         dq      JUMP,.store             ; JUMP[.store]
+
+                        ; Fixes up floating point exponent, and in the
+                        ; process, also generates a new representation
+                        ; for the number which includes an optional
+                        ; exponent field. The input number must be normalized,
+                        ; i.e. contain at most one leading digit before the
+                        ; optional decimal point. The target buffer must be
+                        ; large enough to hold the new representation. The
+                        ; subroutine FIXUPEXP ... to be continued
+                        ; ( tlimit taddr )
+                        ; DEFCOL  "FIXEXPON",FIXEXPON,0
 
                         section .rodata
 
