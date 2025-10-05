@@ -3561,6 +3561,44 @@ _dig2chr                movzx   rax,al
                         mov     [r15],rdi   ; store new addr
 .dontstore              NEXT
 
+                        ; stores a minus at the specified address
+                        ; then increases that address, as long as the
+                        ; address is smaller than the provided limit
+                        ; ( limit addr -- limit addr )
+                        DEFASM  "MINUS!",STOREMINUS,0
+                        CHKUNF  2
+                        mov     rsi,[r15+8]
+                        mov     rdi,[r15]
+                        cmp     rdi,rsi
+                        jae     .dontstore
+                        cld
+                        mov     al,'-'
+                        stosb
+                        mov     [r15],rdi   ; store new addr
+.dontstore              NEXT
+
+                        ; stores an exponent indicator at the specified address
+                        ; then increases that address, as long as the
+                        ; address is smaller than the provided limit
+                        ; ( limit addr -- limit addr )
+                        DEFASM  "EXPIND!",STOREEXPIND,0
+                        CHKUNF  2
+                        mov     rsi,[r15+8]
+                        mov     rdi,[r15]
+                        cmp     rdi,rsi
+                        jae     .dontstore
+                        cld
+                        mov     rax,[rbp-BASE]
+                        cmp     rax,10  ; check if base > 10
+                        ja      .largebase
+                        mov     al,'E'
+                        stosb
+                        jmp     .end
+.largebase              mov     al,"'"
+                        stosb
+.end                    mov     [r15],rdi   ; store new addr
+.dontstore              NEXT
+
                         ; Store digits from a floating-point number
                         ; that is in normalized form (i.e. with one leading
                         ; digit at most) using the current number base (BASE).
@@ -3989,10 +4027,121 @@ _dig2chr                movzx   rax,al
                         ; exponent field. The input number must be normalized,
                         ; i.e. contain at most one leading digit before the
                         ; optional decimal point. The target buffer must be
-                        ; large enough to hold the new representation. The
-                        ; subroutine FIXUPEXP ... to be continued
-                        ; ( tlimit taddr )
-                        ; DEFCOL  "FIXEXPON",FIXEXPON,0
+                        ; large enough to hold the new representation.
+                        ; ( tlimit taddr saddrend saddr hasdot before after
+                        ; maxdig exponent sign -- tremain )
+                        DEFCOL  "FIXEXPON",FIXEXPON,0
+                        ; use sign to add a '-' if necessary
+                        dq      BINNOT,CONDJUMP,.nosign     ; NOT ?JUMP[.nosign]
+                        ; ( tlimit taddr saddrend saddr hasdot before after
+                        ;   maxdig exponent )
+                        dq      LIT,9,DUP,ROLL,ROLL         ; 9 DUP ROLL ROLL
+                        ; ( saddrend saddr hasdot before after maxdig exponent
+                        ;   tlimit taddr )
+                        ; test whether we can store it
+                        dq      SWAP,TWODUP,UGEINT          ; SWAP 2DUP U>=
+                        dq      CONDJUMP,.targetfull        ; ?JUMP[.targetfull]
+                        ; yes: store
+                        dq      SWAP                        ; SWAP
+                        dq      STOREMINUS                  ; MINUS!
+                        ; ( saddrend saddr hasdot before after maxdig exponent
+                        ;   tlimit taddr )
+                        ; restore order
+                        dq      LIT,-9,DUP,ROLL,ROLL        ; -9 DUP ROLL ROLL
+                        ; ( tlimit taddr saddrend saddr hasdot before after
+                        ;   maxdig exponent )
+                        ; sum before and after
+.nosign                 dq      LIT,4,DUP,ROLL,ROLL         ; 4 DUP ROLL ROLL
+                        ; ( tlimit taddr saddrend saddr hasdot maxdig
+                        ;   exponent before after )
+                        dq      ADDINT                      ; +
+                        ; ( tlimit taddr saddrend saddr hasdot maxdig
+                        ;   exponent totdig )
+                        dq      SWAP                        ; SWAP
+                        ; ( tlimit taddr saddrend saddr hasdot maxdig
+                        ;   totdig exponent )
+                        ; bring hasdot to front
+                        dq      LIT,4,ROLL                  ; 4 ROLL
+                        ; ( tlimit taddr saddrend saddr maxdig totdig
+                        ;   exponent hasdot )
+                        ; drop it (we don't need it here)
+                        dq      DROP                        ; DROP
+                        ; ( tlimit taddr saddrend saddr maxdig totdig
+                        ;   exponent )
+                        ; make a copy of tlimit
+                        dq      LIT,7,ROLL                  ; 7 ROLL
+                        dq      DUP                         ; DUP
+                        ; ( taddr saddrend saddr maxdig totdig exponent tlimit
+                        ;   tlimit )
+                        ; now restore order
+                        dq      LIT,-8,DUP,ROLL,ROLL        ; -8 DUP ROLL ROLL
+                        ; ( tlimit tlimit taddr saddrend saddr maxdig totdig
+                        ;   exponent )
+                        ; fix up exponent
+                        dq      FIXUPEXP                    ; FIXUPEXP
+                        ; ( tlimit tremain exponent )
+                        ; check if exponent is zero: don't need it then
+                        dq      DUP,EQZEROINT               ; DUP =0
+                        dq      CONDJUMP,.noexponent        ; ?JUMP[.noexponent]
+                        ; compute a new taddr field from tlimit - tremain
+                        dq      LIT,-3,ROLL                 ; -3 ROLL
+                        ; ( exponent tlimit tremain )
+                        dq      OVER,SWAP,SUBINT            ; OVER SWAP -
+                        ; ( exponent tlimit taddr )
+                        ; need to write exponent indicator: check if there's
+                        ; room in the buffer
+                        dq      SWAP,TWODUP,UGEINT       ; SWAP 2DUP U>=
+                        dq      CONDJUMP,.bufferfull2    ; ?JUMP[.bufferfull2]
+                        ; yes: write it
+                        dq      STOREEXPIND                 ; EXPIND!
+                        ; ( exponent tlimit taddr )
+                        ; restore order
+                        dq      LIT,3,ROLL                  ; 3 ROLL
+                        ; ( tlimit taddr exponent )
+                        ; check exponent again: if negative, store a minus
+                        ; ... TBD ...
+
+
+
+                        dq      EXIT
+                        ; ( exponent taddr tlimit )
+                        ; buffer is full, can't write exponent indicator
+                        ; recompute tremain
+.bufferfull2            dq      SUBINT                      ; -
+                        ; ( exponent tremain )
+                        ; drop the exponent field
+                        dq      SWAP,DROP                   ; SWAP DROP
+                        ; ( tremain )
+                        ; finished
+                        dq      EXIT
+                        ; ( tlimit tremain exponent )
+                        ; there's no exponent field, finish up
+.noexponent             dq      SWAP                        ; SWAP
+                        ; ( tlimit exponent tremain )
+                        dq      LIT,-3,ROLL                 ; -3 ROLL
+                        ; ( tremain tlimit exponent )
+                        dq      TWODROP                     ; 2DROP
+                        ; ( tremain )
+                        dq      EXIT
+                        ; ( saddrend saddr hasdot before after maxdig exponent
+                        ;   taddr tlimit )
+                        ; cannot write leading minus sign, finish up
+                        ; compute tremain
+.targetfull             dq      SUBINT                      ; -
+                        ; ( saddrend saddr hasdot before after maxdig exponent
+                        ;   tremain )
+                        ; scroll args to leave tremain at the bottom
+                        dq      LIT,-8,ROLL                 ; -8 ROLL
+                        ; ( tremain saddrend saddr hasdot before after
+                        ;   maxdig exponent )
+                        ; drop the other fields
+                        dq      TWODROP,TWODROP,TWODROP ; 2DROP 2DROP 2DROP
+                        dq      DROP
+                        ; ( tremain )
+                        ; done
+                        dq      EXIT
+
+
 
                         section .rodata
 
