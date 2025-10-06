@@ -11,7 +11,7 @@ The FORTH subsystem is almost ready for use, but there's still some stuff missin
 
 Some of its features are:
 - 64 bit integers in base 2 to 36, signed and unsigned arithmetic
-- 64 bit floating-point in base 2 to 36 (printing numbers in arbitrary base is still in the works, "F." is decimal only at the moment)
+- 64 bit floating-point in base 2 to 36 (printing numbers in arbitrary base is still in the works, "F." is decimal only at the moment). Floating-point numbers can be passed just like addresses and integers on the parameter and return stacks.
 - Supports defining words with CREATE ... DOES>
 - Supports control structure IF ... ELSE ... THEN, and also UNLESS ... ELSE ... THEN
 - Written in x86-64 assembly code for UNIX-like operating systems (tested so far only on Linux)
@@ -23,7 +23,7 @@ Some of its features are:
 - Bounds checking for parameter and return stack pointers (bounds checking for the dictionary pointer is yet to be implemented).
 - Uses not a single global variable, thus suitable for multithread execution (with each FORTH instance in its own thread with its own memory).
 - Stack frame of FORTH context is comparatively small with currently 1032 bytes of storage (1032 for alignment purposes).
-- The whole FORTH nucleus has currently less than 4000 lines of well-documented assembly code and hand-compiled FORTH code.
+- The whole FORTH nucleus has currently less than 4500 lines of well-documented assembly code and hand-compiled FORTH code.
 - No AI was used for implementation.
 - The provided test program "test_fvm" can be built and used to test/use the FORTH engine stand-alone, for debugging and other uses.
 

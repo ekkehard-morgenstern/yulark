@@ -4269,6 +4269,22 @@ _dig2chr                movzx   rax,al
                         dq      FLTEXAM,LIT,6,EQINT     ; FEXAM 6 =
                         dq      EXIT
 
+                        ; extracts significand and exponent from
+                        ; given floating-point number, as regular
+                        ; base 2 values.
+                        ; ( number -- significand exponent )
+                        DEFASM  "FEXTRACT",FEXTRACT,0
+                        CHKOVF      1
+                        fld         qword [r15]
+                        sub         rsp,8
+                        ; execute fxtract
+                        fxtract
+                        ; st1 - exponent
+                        ; st0 - significand
+                        fstp        qword [r15+8]
+                        fistp       word [r15]
+                        NEXT
+
                         ; Writes a special string to output if the provided
                         ; floating-point number is a special case, otherwise
                         ; writes just the sign. Returns a boolean TRUE if its a
@@ -4334,6 +4350,63 @@ _dig2chr                movzx   rax,al
 .notemp                 dq      DROP,LIT,0.0,LIT,0      ; DROP 0.0 0
                         dq      EXIT
 
+                        ; This is the new "F." function (will be renamed later).
+                        ; ( number -- )
+                        DEFCOL  "FPR",FLTPRINT,0
+                        ; classify number and return whether it's a finite
+                        ; normal number or a special case. Also outputs the sign
+                        ; and negates the number if necessary.
+                        dq      FSPECDOT,BINNOT         ; FSPEC. NOT
+                        ; ( number bool )
+                        dq      CONDJUMP,.notnormal     ; ?JUMP[.notnormal]
+                        ; ( number )
+                        ; for a finite normal number, the number is returned
+                        ; split number into significand and exponent
+                        dq      FEXTRACT                ; FEXTRACT
+                        ; ( signif2 expon2 )
+                        ; compute logb2
+                        dq      PUSHBASE,FETCH,I2F      ; BASE @ I2F
+                        dq      LIT,2.0,FLOATLOG        ; 2.0 FLOG
+                        ; ( signif2 expon2 logb2 )
+                        ; multiply with expon2 to get expb2
+                        ; (see test_nconv.c for reference)
+                        dq      SWAP                    ; SWAP
+                        ; ( signif2 logb2 expon2 )
+                        dq      OVER,SWAP               ; OVER SWAP
+                        ; ( signif2 logb2 logb2 export2 )
+                        dq      MULFLT                  ; F*
+                        ; ( signif2 logb2 expb2 )
+                        ; split into integer and floating-point parts
+                        dq      DUP,F2I                 ; DUP F2I
+                        ; ( signif2 logb2 expb2 expb2i )
+                        dq      DUP                     ; DUP
+                        ; ( signif2 logb2 expb2 expb2i expb2i )
+                        dq      ROT                     ; ROT
+                        ; ( signif2 logb2 expb2i expb2i expb2 )
+                        dq      SWAP                    ; SWAP
+                        ; ( signif2 logb2 expb2i expb2 expb2i )
+                        dq      SUBFLT                  ; F-
+                        ; ( signif2 logb2 expb2i frac )
+                        dq      ROT                     ; ROT
+                        ; ( signif2 expb2i frac logb2 )
+                        dq      DIVFLT                  ; F/
+                        ; ( signif2 expb2i expb2f )
+                        ; done, now compute the based number
+                        dq      LIT,2.0,SWAP            ; 2.0 SWAP
+                        ; ( signif2 expb2i 2.0 expb2f )
+                        dq      FPOWER                  ; FPOW
+                        ; ( signif2 expb2i expb2p )
+                        dq      ROT                     ; ROT
+                        ; ( expb2i expb2p signif2 )
+                        dq      MULFLT                  ; F*
+                        ; ( expb2i numb2f )
+                        ; good, now do all the other stuff
+                        ; ... TBD ...
+
+                        dq      TWODROP,EXIT            ; 2DROP
+
+                        ; ( number )
+.notnormal              dq      DROP,EXIT               ; DROP
 
                         section .rodata
 
