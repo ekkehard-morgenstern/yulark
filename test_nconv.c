@@ -73,7 +73,7 @@ static void storedot( char* buf, size_t bufsz, size_t* ppos ) {
     *ppos = pos;
 }
 
-static void outputmantissa( char* buf, size_t bufsz, size_t* ppos, 
+static void outputmantissa( char* buf, size_t bufsz, size_t* ppos,
     double data, int base, int maxdig ) {
     size_t pos = *ppos;
     bool first = true;
@@ -99,7 +99,7 @@ static void outputmantissa( char* buf, size_t bufsz, size_t* ppos,
     *ppos = pos;
 }
 
-static void countdigits( const char* buf, size_t endpos, 
+static void countdigits( const char* buf, size_t endpos,
     bool* phasdot, size_t* pbefore, size_t* pafter ) {
     bool hasdot = false; size_t before = 0, after = 0;
     for ( size_t i=0; i < endpos; ++i ) {
@@ -122,7 +122,7 @@ static void countdigits( const char* buf, size_t endpos,
 extern void fixupexp( char* target, const char* source, size_t maxdigits,
     size_t total, int16_t* pexp );
 
-static void outexp( char* buf2, size_t bufsz2, size_t* ppos2, int base, 
+static void outexp( char* buf2, size_t bufsz2, size_t* ppos2, int base,
     int val ) {
     size_t pos2 = *ppos2;
     if ( val >= base ) outexp( buf2, bufsz2, &pos2, base, val / base );
@@ -132,8 +132,8 @@ static void outexp( char* buf2, size_t bufsz2, size_t* ppos2, int base,
     *ppos2 = pos2;
 }
 
-static void fixexponent( char* buf2, size_t bufsz2, size_t* ppos2, 
-    const char* buf, size_t endpos, bool hasdot, size_t before, size_t after, 
+static void fixexponent( char* buf2, size_t bufsz2, size_t* ppos2,
+    const char* buf, size_t endpos, bool hasdot, size_t before, size_t after,
     int maxdig, int16_t* pexpb2i, int base, bool sign ) {
     size_t pos2 = *ppos2;
     size_t total = before + after;
@@ -161,7 +161,7 @@ int main( int argc, char** argv ) {
 
     char buf[256];
     double d; int b;
-    readln( "Floating-point number", buf, 256 ); 
+    readln( "Floating-point number", buf, 256 );
     if ( sscanf( buf, "%lf", &d ) != 1 ) return EXIT_FAILURE;
     readln( "Desired output base  ", buf, 256 );
     if ( sscanf( buf, "%d", &b ) != 1 || b < 2 || b > 36 ) return EXIT_FAILURE;
@@ -210,8 +210,8 @@ int main( int argc, char** argv ) {
     double expb2f = ( expb2 - expb2i ) / logb2;
     t = sig2 * pow( 2.0, expb2f );
     int maxdig = (int) round( alog( b, pow( 2, 52 ) ) );
-    printf( "t = %g, expb2i = %" PRId16 ", maxdig = %d\n", t, expb2i, 
-        maxdig );
+    printf( "t = %g, expb2i = %" PRId16 ", expb2f = %g, maxdig = %d\n", t,
+        expb2i, expb2f, maxdig );
 
     size_t pos = 0;
     outputmantissa( buf, 256U, &pos, t, b, maxdig );
@@ -219,7 +219,7 @@ int main( int argc, char** argv ) {
 
     bool hasdot = false; size_t before = 0, after = 0;
     countdigits( buf, pos, &hasdot, &before, &after );
-    printf( "hasdot = %s, before = %zu, after = %zu\n", 
+    printf( "hasdot = %s, before = %zu, after = %zu\n",
         (hasdot?"true":"false"), before, after );
 
     char buf2[256]; size_t pos2 = 0;

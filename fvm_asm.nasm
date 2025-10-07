@@ -851,6 +851,7 @@ fvm_docol               RCHKOVF 1
                         NEXT
 
                         ; pick word from stack
+                        ; ( n -- nth )
                         DEFASM  "PICK",PICK,0
                         CHKUNF  1
                         mov     rax,[r15]
@@ -3794,43 +3795,54 @@ _dig2chr                movzx   rax,al
                         dq      EXIT
 
                         ; count digits before and after optional decimal point
-                        ; ( start addr -- start addr hasdot before after )
+                        ; ( start end -- start end hasdot before after )
                         DEFCOL  "COUNTDIG",COUNTDIG,0
+                        dq      OVER                ; OVER
+                        ; ( start end ptr )
                         dq      LIT,0,LIT,0,LIT,0   ; 0 0 0
-                        ; ( start addr hasdot before after )
-.next                   dq      LIT,5,DUP,ROLL,ROLL ; 5 DUP ROLL ROLL
-                        ; ( hasdot before after start addr )
-                        dq      SWAP,TWODUP,UGTINT  ; SWAP 2DUP U>
+                        ; ( start end ptr hasdot before after )
+.next                   dq      LIT,5,ROLL,LIT,5,ROLL ; 5 ROLL 5 ROLL
+                        ; ( start hasdot before after end ptr )
+                        dq      SWAP,TWODUP,UGEINT  ; SWAP 2DUP U>=
                         dq      CONDJUMP,.end       ; ?JUMP[.end]
                         dq      SWAP
-                        ; ( hasdot before after start addr )
-                        dq      DUP,CHARFETCH       ; DUP C@
+                        ; ( start hasdot before after end ptr )
+                        dq      DUP,ADDONE,SWAP     ; DUP +1 SWAP
+                        ; ( start hasdot before after end newptr ptr )
+                        dq      CHARFETCH       ; DUP C@
                         dq      LIT,'.',NEINT       ; '.' <>
                         dq      CONDJUMP,.notdot    ; JUMP[.notdot]
-                        ; dot
-                        dq      LIT,5,ROLL,DROP,LIT,-1 ; 5 ROLL DROP -1
-                        ; ( before after start addr hasdot )
-                        dq      LIT,-5,ROLL         ; -5 ROLL
-                        ; ( hasdot before after start addr )
-                        dq      LIT,-5,DUP,ROLL,ROLL ; -5 DUP ROLL ROLL
-                        ; ( start addr hasdot before after )
+                        ; dot: set hasdot flag
+                        ; ( start hasdot before after end newptr )
+                        dq      LIT,-5,ROLL,LIT,-5,ROLL ; -5 ROLL -5 ROLL
+                        ; ( start end newptr hasdot before after )
+                        dq      ROT                 ; ROT
+                        ; ( start end newptr before after hasdot )
+                        dq      DROP,LIT,-1         ; DROP -1
+                        ; ( start end newptr before after hasdot )
+                        dq      LIT,-3,ROLL
+                        ; ( start end newptr hasdot before after )
                         dq      JUMP,.next          ; JUMP[.next]
-                        ; ( start addr hasdot before after )
-.notdot                 dq      LIT,3,PICK          ; 3 PICK
+                        ; ( start hasdot before after end newptr )
+.notdot                 dq      LIT,-5,ROLL,LIT,-5,ROLL ; -5 ROLL -5 ROLL
+                        ; ( start end newptr hasdot before after )
+                        dq      LIT,3,PICK          ; 3 PICK
                         dq      CONDJUMP,.hasdot    ; ?JUMP[.hasdot]
-                        ; ( start addr hasdot before after )
+                        ; ( start end newptr hasdot before after )
                         ; no dot yet: increase before
                         dq      SWAP,ADDONE,SWAP    ; SWAP 1+ SWAP
                         dq      JUMP,.next          ; JUMP[.next]
-                        ; ( start addr hasdot before after )
+                        ; ( start end newptr hasdot before after )
                         ; has dot: increase after
 .hasdot                 dq      ADDONE              ; 1+
                         dq      JUMP,.next          ; JUMP[.next]
-                        ; ( hasdot before after addr start )
+                        ; ( start hasdot before after ptr end )
 .end                    dq      SWAP                ; SWAP
-                        ; ( hasdot before after start addr )
-                        dq      LIT,-5,DUP,ROLL,ROLL ; -5 DUP ROLL ROLL
-                        ; ( start addr hasdot before after )
+                        ; ( start hasdot before after end ptr )
+                        dq      DROP                ; DROP
+                        ; ( start hasdot before after end )
+                        dq      LIT,-4,ROLL         ; -4 ROLL
+                        ; ( start end hasdot before after )
                         dq      EXIT
 
                         ; call C function
@@ -4035,7 +4047,7 @@ _dig2chr                movzx   rax,al
                         dq      BINNOT,CONDJUMP,.nosign     ; NOT ?JUMP[.nosign]
                         ; ( tlimit taddr saddrend saddr hasdot before after
                         ;   maxdig exponent )
-                        dq      LIT,9,DUP,ROLL,ROLL         ; 9 DUP ROLL ROLL
+                        dq      LIT,9,ROLL,LIT,9,ROLL       ; 9 ROLL 9 ROLL
                         ; ( saddrend saddr hasdot before after maxdig exponent
                         ;   tlimit taddr )
                         ; test whether we can store it
@@ -4047,11 +4059,11 @@ _dig2chr                movzx   rax,al
                         ; ( saddrend saddr hasdot before after maxdig exponent
                         ;   tlimit taddr )
                         ; restore order
-                        dq      LIT,-9,DUP,ROLL,ROLL        ; -9 DUP ROLL ROLL
+                        dq      LIT,-9,ROLL,LIT,-9,ROLL     ; -9 ROLL -9 ROLL
                         ; ( tlimit taddr saddrend saddr hasdot before after
                         ;   maxdig exponent )
                         ; sum before and after
-.nosign                 dq      LIT,4,DUP,ROLL,ROLL         ; 4 DUP ROLL ROLL
+.nosign                 dq      LIT,4,ROLL,LIT,4,ROLL       ; 4 ROLL 4 ROLL
                         ; ( tlimit taddr saddrend saddr hasdot maxdig
                         ;   exponent before after )
                         dq      ADDINT                      ; +
@@ -4074,7 +4086,7 @@ _dig2chr                movzx   rax,al
                         ; ( taddr saddrend saddr maxdig totdig exponent tlimit
                         ;   tlimit )
                         ; now restore order
-                        dq      LIT,-8,DUP,ROLL,ROLL        ; -8 DUP ROLL ROLL
+                        dq      LIT,-8,ROLL,LIT,-8,ROLL     ; -8 ROLL -8 ROLL
                         ; ( tlimit tlimit taddr saddrend saddr maxdig totdig
                         ;   exponent )
                         ; fix up exponent
@@ -4276,13 +4288,13 @@ _dig2chr                movzx   rax,al
                         DEFASM  "FEXTRACT",FEXTRACT,0
                         CHKOVF      1
                         fld         qword [r15]
-                        sub         rsp,8
+                        sub         r15,8
                         ; execute fxtract
                         fxtract
                         ; st1 - exponent
                         ; st0 - significand
                         fstp        qword [r15+8]
-                        fistp       word [r15]
+                        fstp        qword [r15]
                         NEXT
 
                         ; Writes a special string to output if the provided
@@ -4375,7 +4387,7 @@ _dig2chr                movzx   rax,al
                         dq      SWAP                    ; SWAP
                         ; ( signif2 logb2 expon2 )
                         dq      OVER,SWAP               ; OVER SWAP
-                        ; ( signif2 logb2 logb2 export2 )
+                        ; ( signif2 logb2 logb2 expon2 )
                         dq      MULFLT                  ; F*
                         ; ( signif2 logb2 expb2 )
                         ; split into integer and floating-point parts
@@ -4392,7 +4404,7 @@ _dig2chr                movzx   rax,al
                         ; ( signif2 logb2 expb2i expb2i expb2 )
                         dq      SWAP                    ; SWAP
                         ; ( signif2 logb2 expb2i expb2 expb2i )
-                        dq      SUBFLT                  ; F-
+                        dq      I2F,SUBFLT              ; I2F F-
                         ; ( signif2 logb2 expb2i frac )
                         dq      ROT                     ; ROT
                         ; ( signif2 expb2i frac logb2 )
@@ -4439,7 +4451,17 @@ _dig2chr                movzx   rax,al
                         ; ( expb2i maxdig length start start )
                         dq      ROT,ADDINT              ; ROT +
                         ; ( expb2i maxdig start addr )
+                        dq      OVER,_HEX,DOT,DUP,DOT,_DEC
+
                         dq      COUNTDIG                ; COUNTDIG
+
+                        dq      OKAY
+                        dq      LIT,7,PICK,DOT
+                        dq      LIT,6,PICK,DOT
+                        dq      LIT,3,PICK,DOT
+                        dq      LIT,2,PICK,DOT
+                        dq      LIT,1,PICK,DOT
+
                         ; ( expb2i maxdig start addr hasdot before
                         ;   after )
                         ; we'll use the DOT buffer as the output buffer
@@ -4448,7 +4470,7 @@ _dig2chr                movzx   rax,al
                         ; parameter.
                         ; first, get exp2bi (the exponent) and maxdig to
                         ; the front.
-                        dq      LIT,7,DUP,ROLL,ROLL     ; 7 DUP ROLL ROLL
+                        dq      LIT,7,ROLL,LIT,7,ROLL   ; 7 ROLL 7 ROLL
                         ; ( start addr hasdot before after expb2i maxdig )
                         ; swap expb2i and maxdig
                         dq      SWAP                    ; SWAP
@@ -4464,7 +4486,7 @@ _dig2chr                movzx   rax,al
                         dq      SWAP                    ; SWAP
                         ; ( saddr saddrend hasdot before after maxdig exponent
                         ;   sign tlimit taddr )
-                        dq      LIT,-10,DUP,ROLL,ROLL   ; -10 DUP ROLL ROLL
+                        dq      LIT,-10,ROLL,LIT,-10,ROLL ; -10 ROLL -10 ROLL
                         ; ( tlimit taddr saddrend saddr hasdot before after
                         ; maxdig exponent sign )
                         dq      FIXEXPON                ; FIXEXPON
