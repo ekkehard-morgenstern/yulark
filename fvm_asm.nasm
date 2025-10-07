@@ -4370,6 +4370,8 @@ _dig2chr                movzx   rax,al
                         ; ( signif2 expon2 logb2 )
                         ; multiply with expon2 to get expb2
                         ; (see test_nconv.c for reference)
+                        ; expb2 = exp2 * logb2
+                        ; however, we need to keep a copy of logb2 for later
                         dq      SWAP                    ; SWAP
                         ; ( signif2 logb2 expon2 )
                         dq      OVER,SWAP               ; OVER SWAP
@@ -4377,8 +4379,13 @@ _dig2chr                movzx   rax,al
                         dq      MULFLT                  ; F*
                         ; ( signif2 logb2 expb2 )
                         ; split into integer and floating-point parts
+                        ; expb2i = (int) round( expb2 )
+                        ; coincidentially, F2I uses FRNDINT to round to integer
                         dq      DUP,F2I                 ; DUP F2I
                         ; ( signif2 logb2 expb2 expb2i )
+                        ; expb2f = ( expb2 - expb2i ) / logb2
+                        ; however, we need to make copy of expb2i first
+                        ; and put it in the back
                         dq      DUP                     ; DUP
                         ; ( signif2 logb2 expb2 expb2i expb2i )
                         dq      ROT                     ; ROT
@@ -4392,6 +4399,7 @@ _dig2chr                movzx   rax,al
                         dq      DIVFLT                  ; F/
                         ; ( signif2 expb2i expb2f )
                         ; done, now compute the based number
+                        ; numb2f = signif2 * pow( 2.0, expb2f )
                         dq      LIT,2.0,SWAP            ; 2.0 SWAP
                         ; ( signif2 expb2i 2.0 expb2f )
                         dq      FPOWER                  ; FPOW
@@ -4401,9 +4409,77 @@ _dig2chr                movzx   rax,al
                         dq      MULFLT                  ; F*
                         ; ( expb2i numb2f )
                         ; good, now do all the other stuff
-                        ; ... TBD ...
-
-                        dq      TWODROP,EXIT            ; 2DROP
+                        ; maxdig = (int) round( alog( b, pow( 2, 52 ) ) )
+                        dq      PUSHBASE,FETCH,I2F      ; BASE @ I2F
+                        ; ( expb2i numb2f basef )
+                        dq      LIT,2.0,LIT,52.0,FPOWER ; 2.0 52.0 FPOW
+                        ; ( expb2i numb2f basef powf )
+                        dq      FLOATLOG,F2I            ; FLOG F2I
+                        ; ( expb2i numb2f maxdig )
+                        ; prepare for OUTMANT
+                        ; we're using the PREP buffer
+                        dq      PUSHPREP,DUP,LIT,256,ADDINT ; PREP DUP 256 +
+                        ; ( expb2i numb2f maxdig start limit )
+                        ; get numb2f to the front
+                        dq      LIT,4,ROLL              ; 4 ROLL
+                        ; ( expb2i maxdig start limit number )
+                        ; get maxdig to the front
+                        dq      LIT,4,ROLL              ; 4 ROLL
+                        ; ( expb2i start limit number maxdig )
+                        ; make a copy of maxdig for later
+                        dq      DUP                     ; DUP
+                        ; ( expb2i start limit number maxdig maxdig )
+                        dq      LIT,-5,ROLL             ; -5 ROLL
+                        ; ( expb2i maxdig start limit number maxdig )
+                        ; now we're ready for OUTMANT
+                        dq      OUTMANT                 ; OUTMANT
+                        ; ( expb2i maxdig length )
+                        ; count the digits
+                        dq      PUSHPREP,DUP            ; PREP DUP
+                        ; ( expb2i maxdig length start start )
+                        dq      ROT,ADDINT              ; ROT +
+                        ; ( expb2i maxdig start addr )
+                        dq      COUNTDIG                ; COUNTDIG
+                        ; ( expb2i maxdig start addr hasdot before
+                        ;   after )
+                        ; we'll use the DOT buffer as the output buffer
+                        ; since we already output the sign, we don't need
+                        ; to remember it, we'll simply pass 0 as the sign
+                        ; parameter.
+                        ; first, get exp2bi (the exponent) and maxdig to
+                        ; the front.
+                        dq      LIT,7,DUP,ROLL,ROLL     ; 7 DUP ROLL ROLL
+                        ; ( start addr hasdot before after expb2i maxdig )
+                        ; swap expb2i and maxdig
+                        dq      SWAP                    ; SWAP
+                        ; ( start addr hasdot before after maxdig expb2i )
+                        ; add the "0" (positive) sign
+                        dq      LIT,0                   ; 0
+                        ; ( saddr saddrend hasdot before after maxdig exponent
+                        ;   sign )
+                        ; now we need target limit and target address
+                        dq      PUSHDOT,DUP,LIT,256,ADDINT ; DOT DUP 256 +
+                        ; ( saddr saddrend hasdot before after maxdig exponent
+                        ;   sign taddr tlimit )
+                        dq      SWAP                    ; SWAP
+                        ; ( saddr saddrend hasdot before after maxdig exponent
+                        ;   sign tlimit taddr )
+                        dq      LIT,-10,DUP,ROLL,ROLL   ; -10 DUP ROLL ROLL
+                        ; ( tlimit taddr saddrend saddr hasdot before after
+                        ; maxdig exponent sign )
+                        dq      FIXEXPON                ; FIXEXPON
+                        ; ( tremain )
+                        ; since tremain is the remaining number of characters
+                        ; in the target buffer, and the DOT buffer is 256 bytes
+                        ; long, 256-tremain is the length.
+                        dq      LIT,256,SWAP,SUBINT     ; 256 SWAP -
+                        ; ( length )
+                        ; add the base address
+                        dq      PUSHDOT,SWAP            ; DOT SWAP
+                        ; ( addr length )
+                        ; finally, output it
+                        dq      TYPEOUT                 ; TYPE
+                        dq      EXIT
 
                         ; ( number )
 .notnormal              dq      DROP,EXIT               ; DROP
