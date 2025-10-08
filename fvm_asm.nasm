@@ -4494,6 +4494,8 @@ _dig2chr                movzx   rax,al
                         ; ( addr length )
                         ; finally, output it
                         dq      TYPEOUT                 ; TYPE
+                        ; output trailing blank
+                        dq      LIT,32,EMITCHAR         ; 32 EMIT
                         dq      EXIT
 
                         ; ( number )
