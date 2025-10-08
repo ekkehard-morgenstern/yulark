@@ -1564,8 +1564,13 @@ _fpowl                  push    rsi
                         dq      DUP,ISSPC,BINNOT ;   DUP ?SPC NOT
                         dq      CONDJUMP,.finish2 ;  ?JUMP[.finish2]
                         ; ( char )
+                        ; check if character was a "\n"
+                        dq      DUP,LIT,10,NEINT ;  DUP 10 <>
+                        dq      CONDJUMP,.nolf   ;  ?JUMP[.nolf]
+                        ; linefeed, output OK if input is from a TTY
+                        dq      OKAY
                         ; drop character
-                        dq      DROP            ;   DROP
+.nolf                   dq      DROP            ;   DROP
                         ; read next
                         dq      JUMP,.nextchar  ;   JUMP[.nextchar]
                         ; ( char )
@@ -2845,10 +2850,10 @@ fvm_douser              CHKOVF  1
                         dq      SYSISATTY           ; SYSISATTY
                         dq      CONDJUMP,.print     ; ?JUMP[.print]
                         dq      EXIT
-.print                  dq      LIT,.oktext,LIT,4   ; [.oktext] 4
+.print                  dq      LIT,.oktext,LIT,3   ; [.oktext] 3
                         dq      TYPEOUT             ; TYPE
                         dq      EXIT
-.oktext                 db      " ok",10
+.oktext                 db      "ok",10
                         align   8
 
                         ; gets the codeword address from the stack
@@ -3037,6 +3042,22 @@ fvm_douser              CHKOVF  1
 .eof                    dq      DROP                ; DROP
                         dq      JMPSYS,fvm_unexpeof ; JMPSYS[.unexpeof]
 .end                    dq      DROP                ; DROP
+                        dq      EXIT
+
+                        DEFCOL  "\",LINECOMMENT,F_IMMEDIATE
+.nextchar               dq      PADGETCH            ; PADGETCH
+                        dq      DUP,LIT,-1,EQINT    ; -1 =
+                        dq      CONDJUMP,.eof       ; ?JUMP[.end]
+                        dq      DUP,LIT,10,EQINT    ; '\n' =
+                        dq      CONDJUMP,.end       ; ?JUMP[.end]
+                        dq      DROP                ; DROP
+                        dq      JUMP,.nextchar      ; JUMP[.nextchar]
+.eof                    dq      DROP                ; DROP
+                        dq      JMPSYS,fvm_unexpeof ; JMPSYS[.unexpeof]
+                        ; ends with a newline, go back one position
+                        ; so the newline is read again by SKIPSPC later
+.end                    dq      DROP                ; DROP
+                        dq      TOIN,DECR           ; >IN DECR
                         dq      EXIT
 
                         DEFCOL  "VARIABLE",VARIABLE,0
