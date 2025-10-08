@@ -81,6 +81,10 @@ fvm_run                 enter   0x508,0     ; n bytes of local storage
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
+                        ; rbp-0x140     dictionary space upper bound
+%define DSPCUPR         0x140
+                        ; rbp-0x148     dictionary space lower bound
+%define DSPCLWR         0x148
                         ; rbp-0x150     return stack upper bound
 %define RSTKUPR         0x150
                         ; rbp-0x158     return stack lower bound
@@ -185,6 +189,7 @@ _QUIT                   dq      QUIT
                         ; the dictionary pointer grows forward in memory and
                         ; simply points to be beginning of the memory area.
                         mov     rbx,rdi
+                        mov     [rbp-DSPCLWR],rbx ; this is the DSPC lower bound
 
                         ; the middle between PSP and DP is the stack lower bound
                         mov     rax,r15
@@ -192,6 +197,7 @@ _QUIT                   dq      QUIT
                         shr     rax,1
                         add     rax,rbx
                         mov     [rbp-STKLWR],rax
+                        mov     [rbp-DSPCUPR],rax ; also DSPC upper bound
 
                         ; set up WP
                         lea     r13,_INTERPRET
@@ -277,6 +283,8 @@ fvm_stkovf              ERREND  "? parameter stack overflow"
 fvm_stkunf              ERREND  "? parameter stack underflow"
 fvm_rstkovf             ERREND  "? return stack overflow"
 fvm_rstkunf             ERREND  "? return stack underflow"
+fvm_dspcovf             ERREND  "? dictionary space overflow"
+fvm_dspcunf             ERREND  "? dictionary space underflow"
 fvm_divzro              ERREND  "? division by zero"
 fvm_nofpu               ERREND  "? FPU not found"
 fvm_badbase             ERRMSG  "? bad number base, reset to 10"
@@ -321,6 +329,24 @@ fvm_negallot            ERREND  "? negative allot"
                         cmp     r8,qword [rbp - RSTKUPR]
                         jbe     %%okay
                         jmp     fvm_rstkunf
+%%okay:
+                        %endmacro
+
+                        ; check for dictionary space overflow
+                        %macro  DSPCOVF 1
+                        lea     r8,[rbx + (%1 * 8)]
+                        cmp     r8,qword [rbp - DSPCUPR]
+                        jbe     %%okay
+                        jmp     fvm_dspcovf
+%%okay:
+                        %endmacro
+
+                        ; check for dictionary space underflow
+                        %macro  DSPCUNF 1
+                        lea     r8,[rbx - (%1 * 8)]
+                        cmp     r8,qword [rbp - DSPCLWR]
+                        jae     %%okay
+                        jmp     fvm_dspcunf
 %%okay:
                         %endmacro
 
@@ -2570,6 +2596,19 @@ _tocfa                  add     rdi,8
                         mov     rdi,rbx             ; HERE
                         mov     rax,[rbp-LATEST]    ; LATEST
                         cld
+                        ; limit length to 31
+                        cmp     rcx,31
+                        jbe     .lower31
+                        mov     rcx,31
+                        ; compute expected memory usage
+.lower31                mov     rdx,8       ; link pointer
+                        inc     rdx         ; length/flags byte
+                        add     rdx,rcx     ; name bytes
+                        add     rdx,7       ; alignment
+                        and     rdx,~7      ; alignment
+                        shr     rdx,3       ; /8
+                        ; check boundary
+                        DSPCOVF rdx
                         ; set LATEST to HERE
                         mov     [rbp-LATEST],rbx    ; LATEST = HERE
                         ; put the link backwards at the current position
@@ -2750,6 +2789,7 @@ fvm_douser              CHKOVF  1
                         DEFASM  ",",COMMA,0
                         CHKUNF  1
                         mov     rax,[r15]
+                        DSPCOVF 1
                         mov     rdi,rbx
                         cld
                         stosq
@@ -3107,9 +3147,13 @@ fvm_douser              CHKOVF  1
                         ; test again if it's now negative
                         test    rdx,rdx
                         jl      .negcount
-                        ; it's positive or zero, add to HERE
+                        ; it's positive or zero
+                        ; check boundary
+                        mov     rax,rdx
+                        shr     rax,3
+                        DSPCOVF rax
+                        ; add to HERE
                         add     rbx,rdx
-                        ; TODO !!memory exhaustion checks!!
                         NEXT
                         ; count to be allotted is negative
 .negcount               jmp     fvm_negallot
@@ -3169,6 +3213,7 @@ fvm_douser              CHKOVF  1
                         ; then pushes the address of [0] to the return stack
                         ; using >R to be filled out later.
                         DEFASM  "IF",DOIF,F_IMMEDIATE
+                        DSPCOVF 3
                         mov     rdi,rbx
                         cld
                         lea     rax,ISFALSE     ; store ISFALSE
@@ -3190,6 +3235,7 @@ fvm_douser              CHKOVF  1
                         ;   If true, executes block optionally following
                         ;      ELSE, then contiues after THEN.
                         DEFASM  "UNLESS",DOUNLESS,F_IMMEDIATE
+                        DSPCOVF 3
                         mov     rdi,rbx
                         cld
                         lea     rax,ISTRUE      ; store ISTRUE
@@ -3213,6 +3259,7 @@ fvm_douser              CHKOVF  1
                         ; then pushes the address of [0] after the JUMP to
                         ; the return stack using >R to be filled out later.
                         DEFASM  "ELSE",DOELSE,F_IMMEDIATE
+                        DSPCOVF 2
                         mov     rdi,rbx
                         cld
                         lea     rax,JUMP        ; store JUMP
