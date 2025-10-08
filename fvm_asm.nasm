@@ -74,7 +74,7 @@
                         ; rdi - memory block
                         ; rsi - memory size
                         ; rdx - return stack size
-fvm_run                 enter   0x408,0     ; 768 bytes of local storage
+fvm_run                 enter   0x508,0     ; n bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes PAD space
 %define PAD             0x100
@@ -131,6 +131,8 @@ fvm_run                 enter   0x408,0     ; 768 bytes of local storage
 %define DOTBUF          0x300
                         ; rbp-0x400     preparation buffer for F.
 %define PREPBUF         0x400
+                        ; rbp-0x500     preparation buffer for F.
+%define PREPBUF2        0x500
 
                         push    r15
                         push    r14
@@ -2176,25 +2178,6 @@ _flog                   push    rdi
                         mov     [r15],rax
                         NEXT
 
-                        ; print floating point number
-                        ; TBD: Manually decode using BASE
-                        ; ( float -- )
-                        DEFASM  "F.",FLOATDOT,0
-                        CHKUNF  1
-                        lea     rdi,[rbp-DOTBUF]
-                        mov     rsi,255
-                        lea     rdx,_floatdot_fmt
-                        movq    xmm0,qword [r15]
-                        add     r15,8
-                        mov     al,1
-                        call    snprintf
-                        mov     rdi,[rbp-OFILE]
-                        lea     rsi,[rbp-DOTBUF]
-                        mov     rdx,rax             ; count
-                        mov     rax,__NR_write
-                        syscall
-                        NEXT
-
                         section .rodata
                         align   8
 _floatdot_fmt           db      "%g ",0
@@ -3314,6 +3297,7 @@ _fixupexp               mov         r10,rdi ; pointer beyond end of target
                         ; get exponent shift
                         mov         rax,r8
                         mov         r9,rdx      ; save maximum number of digits
+                        cld
                         ;   r9  - backup of maximum number of digits
                         ; check to see if it's zero, positive or negative
                         cmp         ax,0
@@ -3408,7 +3392,7 @@ _fixupexp               mov         r10,rdi ; pointer beyond end of target
                         movzx       rcx,cx
                         test        rcx,rcx
                         jz          .skipcopy
-                        rep         movsb
+                        REPMOVEB    .skipcopy
                         ; write decimal point then remaining digits
 .skipcopy               xchg        cx,dx
                         movzx       rcx,cx
@@ -3660,6 +3644,13 @@ _dig2chr                movzx   rax,al
                         CHKOVF  1
                         sub     r15,8
                         lea     rax,[rbp-PREPBUF]
+                        mov     [r15],rax
+                        NEXT
+
+                        DEFASM  "PREP2",PUSHPREP2,0
+                        CHKOVF  1
+                        sub     r15,8
+                        lea     rax,[rbp-PREPBUF2]
                         mov     [r15],rax
                         NEXT
 
@@ -4362,9 +4353,9 @@ _dig2chr                movzx   rax,al
 .notemp                 dq      DROP,LIT,0.0,LIT,0      ; DROP 0.0 0
                         dq      EXIT
 
-                        ; This is the new "F." function (will be renamed later).
+                        ; Print floating-point number using number BASE
                         ; ( number -- )
-                        DEFCOL  "FPR",FLTPRINT,0
+                        DEFCOL  "F.",FLTDOT,0
                         ; classify number and return whether it's a finite
                         ; normal number or a special case. Also outputs the sign
                         ; and negates the number if necessary.
@@ -4451,17 +4442,7 @@ _dig2chr                movzx   rax,al
                         ; ( expb2i maxdig length start start )
                         dq      ROT,ADDINT              ; ROT +
                         ; ( expb2i maxdig start addr )
-                        dq      OVER,_HEX,DOT,DUP,DOT,_DEC
-
                         dq      COUNTDIG                ; COUNTDIG
-
-                        dq      OKAY
-                        dq      LIT,7,PICK,DOT
-                        dq      LIT,6,PICK,DOT
-                        dq      LIT,3,PICK,DOT
-                        dq      LIT,2,PICK,DOT
-                        dq      LIT,1,PICK,DOT
-
                         ; ( expb2i maxdig start addr hasdot before
                         ;   after )
                         ; we'll use the DOT buffer as the output buffer
@@ -4475,16 +4456,28 @@ _dig2chr                movzx   rax,al
                         ; swap expb2i and maxdig
                         dq      SWAP                    ; SWAP
                         ; ( start addr hasdot before after maxdig expb2i )
+                        ; transform start addr into saddr saddrend
+                        ; start becomes saddr and addr becomes saddrend
+                        dq      LIT,7,ROLL,LIT,7,ROLL   ; 7 ROLL 7 ROLL
+                        ; ( hasdot before after maxdig expb2i start addr )
+                        ; ( hasdot before after maxdig expb2i saddr saddrend )
+                        dq      SWAP
+                        ; ( hasdot before after maxdig expb2i saddrend saddr )
+                        dq      LIT,-7,ROLL,LIT,-7,ROLL  ; -7 ROLL -7 ROLL
+                        ; ( saddrend saddr hasdot before after maxdig expb2i )
+
+
+                        ; ( saddrend saddr hasdot before after maxdig expb2i )
                         ; add the "0" (positive) sign
                         dq      LIT,0                   ; 0
-                        ; ( saddr saddrend hasdot before after maxdig exponent
+                        ; ( saddrend saddr hasdot before after maxdig exponent
                         ;   sign )
                         ; now we need target limit and target address
-                        dq      PUSHDOT,DUP,LIT,256,ADDINT ; DOT DUP 256 +
-                        ; ( saddr saddrend hasdot before after maxdig exponent
+                        dq      PUSHPREP2,DUP,LIT,256,ADDINT ; PREP2 DUP 256 +
+                        ; ( saddrend saddr hasdot before after maxdig exponent
                         ;   sign taddr tlimit )
                         dq      SWAP                    ; SWAP
-                        ; ( saddr saddrend hasdot before after maxdig exponent
+                        ; ( saddrend saddr hasdot before after maxdig exponent
                         ;   sign tlimit taddr )
                         dq      LIT,-10,ROLL,LIT,-10,ROLL ; -10 ROLL -10 ROLL
                         ; ( tlimit taddr saddrend saddr hasdot before after
@@ -4497,7 +4490,7 @@ _dig2chr                movzx   rax,al
                         dq      LIT,256,SWAP,SUBINT     ; 256 SWAP -
                         ; ( length )
                         ; add the base address
-                        dq      PUSHDOT,SWAP            ; DOT SWAP
+                        dq      PUSHPREP2,SWAP          ; DOT SWAP
                         ; ( addr length )
                         ; finally, output it
                         dq      TYPEOUT                 ; TYPE
