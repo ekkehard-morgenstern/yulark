@@ -27,7 +27,7 @@
                         section     .text
 
                         global      fvm_run
-                        extern      isatty,snprintf
+                        extern      isatty
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -892,6 +892,90 @@ fvm_docol               RCHKOVF 1
                         fistp   qword [r15]
                         NEXT
 
+                        ; ( newmode -- oldmode )
+                        ; modes:
+                        ;   0 - round to nearest (default)
+                        ;   1 - round down (toward -inf)
+                        ;   2 - round up (towards +inf)
+                        ;   3 - round towards zero (truncate)
+                        DEFASM  "FRNDMODE",FRNDMODE,0
+                        CHKUNF  1
+                        ; get new rounding mode (bits 0..1)
+                        mov     rax,[r15]
+                        and     rax,3
+                        shl     ax,10
+                        push    rax
+                        ; save current settings in top half of rax
+                        fstcw   word [rsp+2]
+                        ; mask all bits except 10..11 (RC), which are zero
+                        mov     dx,word [rsp+2]
+                        and     dx,0xf3ff
+                        ; or that to the desired settings
+                        or      ax,dx
+                        ; then write into control register
+                        mov     word [rsp],ax
+                        fldcw   word [rsp]
+                        ; pop rax off the stack
+                        pop     rax
+                        ; upper half now containes the previous settings
+                        ; shift to bit 0..1 and mask off all bits except RC
+                        shr     rax,10
+                        and     rax,3
+                        ; return previous value
+                        mov     [r15],rax
+                        NEXT
+
+                        ; F2I round-to-nearest
+                        ; (same as F2I in default rounding mode)
+                        ; ( n -- n )
+                        DEFCOL  "F2IN",F2IN,0
+                        ; set rounding mode to nearest
+                        dq      LIT,0,FRNDMODE      ; 0 FRNDMODE
+                        ; ( n oldmode )
+                        ; round number
+                        dq      SWAP,F2I,SWAP       ; SWAP F2I SWAP
+                        ; restore rounding mode
+                        dq      FRNDMODE,DROP       ; FRNDMODE DROP
+                        dq      EXIT
+
+                        ; F2I round down
+                        ; ( n -- n )
+                        DEFCOL  "F2ID",F2ID,0
+                        ; set rounding mode to nearest
+                        dq      LIT,1,FRNDMODE      ; 1 FRNDMODE
+                        ; ( n oldmode )
+                        ; round number
+                        dq      SWAP,F2I,SWAP       ; SWAP F2I SWAP
+                        ; restore rounding mode
+                        dq      FRNDMODE,DROP       ; FRNDMODE DROP
+                        dq      EXIT
+
+                        ; F2I round up
+                        ; ( n -- n )
+                        DEFCOL  "F2IU",F2IU,0
+                        ; set rounding mode to nearest
+                        dq      LIT,2,FRNDMODE      ; 2 FRNDMODE
+                        ; ( n oldmode )
+                        ; round number
+                        dq      SWAP,F2I,SWAP       ; SWAP F2I SWAP
+                        ; restore rounding mode
+                        dq      FRNDMODE,DROP       ; FRNDMODE DROP
+                        dq      EXIT
+
+                        ; F2I round-to-zero (truncate)
+                        ; ( n -- n )
+                        DEFCOL  "F2IT",F2IT,0
+                        ; set rounding mode to nearest
+                        dq      LIT,3,FRNDMODE      ; 3 FRNDMODE
+                        ; ( n oldmode )
+                        ; round number
+                        dq      SWAP,F2I,SWAP       ; SWAP F2I SWAP
+                        ; restore rounding mode
+                        dq      FRNDMODE,DROP       ; FRNDMODE DROP
+                        dq      EXIT
+
+                        ; round to integer using the current rounding mode
+                        ; ( n -- n )
                         DEFASM  "FRNDINT",FROUNDINT,0
                         CHKUNF  1
                         fld     qword [r15]
@@ -4356,6 +4440,8 @@ _dig2chr                movzx   rax,al
                         ; Print floating-point number using number BASE
                         ; ( number -- )
                         DEFCOL  "F.",FLTDOT,0
+                        ; first check the number base (BASE)
+                        dq      CHECKBASE               ; CHECKBASE
                         ; classify number and return whether it's a finite
                         ; normal number or a special case. Also outputs the sign
                         ; and negates the number if necessary.
@@ -4419,6 +4505,10 @@ _dig2chr                movzx   rax,al
                         ; ( expb2i numb2f basef powf )
                         dq      FLOATLOG,F2I            ; FLOG F2I
                         ; ( expb2i numb2f maxdig )
+                        ; cut off one digit at the end
+                        ; (for instance, for base 10, this means that instead
+                        ; of 16 digits after the decimal point we use only 15)
+                        dq      SUBONE                  ; 1-
                         ; prepare for OUTMANT
                         ; we're using the PREP buffer
                         dq      PUSHPREP,DUP,LIT,256,ADDINT ; PREP DUP 256 +
@@ -4464,9 +4554,6 @@ _dig2chr                movzx   rax,al
                         dq      SWAP
                         ; ( hasdot before after maxdig expb2i saddrend saddr )
                         dq      LIT,-7,ROLL,LIT,-7,ROLL  ; -7 ROLL -7 ROLL
-                        ; ( saddrend saddr hasdot before after maxdig expb2i )
-
-
                         ; ( saddrend saddr hasdot before after maxdig expb2i )
                         ; add the "0" (positive) sign
                         dq      LIT,0                   ; 0

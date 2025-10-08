@@ -11,7 +11,7 @@ The FORTH subsystem is almost ready for use, but there's still some stuff missin
 
 Some of its features are:
 - 64 bit integers in base 2 to 36, signed and unsigned arithmetic
-- 64 bit floating-point in base 2 to 36 (printing numbers in arbitrary base is still in the works, "F." is decimal only at the moment). Floating-point numbers can be passed just like addresses and integers on the parameter and return stacks.
+- 64 bit floating-point in base 2 to 36. Floating-point numbers can be passed just like addresses and integers on the parameter and return stacks.
 - Supports defining words with CREATE ... DOES>
 - Supports control structure IF ... ELSE ... THEN, and also UNLESS ... ELSE ... THEN
 - Written in x86-64 assembly code for UNIX-like operating systems (tested so far only on Linux)
