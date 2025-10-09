@@ -1390,16 +1390,34 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
+                        ; sign-extends a 32 bit value to 64 bit
+                        ; ( n -- n )
+                        DEFASM  "SX3264",SX3264,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        cdqe
+                        mov     [r15],rax
+                        NEXT
+
+                        ; zero-extends a 32 bit value to 64 bit
+                        ; ( n -- n )
+                        DEFASM  "ZX3264",ZX3264,0
+                        CHKUNF  1
+                        mov     rdx,[r15]
+                        xor     rax,rax
+                        mov     eax,edx
+                        mov     [r15],rax
+                        NEXT
+
                         ; test whether the specified filehandle
                         ; points to a TTY
                         ; ( filehnd -- bool )
-                        DEFASM  "SYSISATTY",SYSISATTY,0
-                        CHKUNF 1
-                        mov     rdi,[r15]
-                        xor     al,al
-                        call    isatty
-                        mov     [r15],rax
-                        NEXT
+                        DEFCOL  "SYSISATTY",SYSISATTY,0
+                        dq      LIT,1,LIT,isatty    ; 1 [isatty]
+                        dq      CALLC               ; CALLC
+                        dq      SX3264              ; SX3264
+                        dq      GTZEROINT           ; >0
+                        dq      EXIT
 
                         ; read entire PAD
                         DEFCOL  "PADREAD",PADREAD,0
@@ -4023,6 +4041,7 @@ _dig2chr                movzx   rax,al
                         cmp     rax,6
                         jbe     .lesseqsix    ; are passed in regs
                         mov     rdx,rax       ; rax-6 is stack count
+                        sub     rdx,6
                         shl     rdx,3         ; * 8
                         sub     rsp,rdx       ; reserve on stack
 .lesseqsix              sub     rsp,31        ; align to 32-byte boundary
@@ -4032,11 +4051,12 @@ _dig2chr                movzx   rax,al
                         ; (see abinotes.txt)
                         test    rax,rax
                         jz      .endargs
+                        dec     rax
                         lea     r11,[r15+rax*8]
                         ; 1st parameter: rdi
                         mov     rdi,[r11]
                         sub     r11,8
-                        dec     rax
+                        test    rax,rax
                         jz      .endargs
                         ; 2nd parameter: rsi
                         mov     rsi,[r11]
