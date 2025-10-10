@@ -1346,7 +1346,7 @@ _fpowl                  push    rsi
                         NEXT
 
                         ; returns the address of the EXPONENT variable
-                        DEFASM  ">MANTISSA",TOEXPONENT,0
+                        DEFASM  ">EXPONENT",TOEXPONENT,0
                         CHKOVF  1
                         lea     rax,[rbp-EXPONENT]
                         sub     r15,8
