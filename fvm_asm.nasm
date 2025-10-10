@@ -76,8 +76,8 @@
                         ; rdx - return stack size
 fvm_run                 enter   0x508,0     ; n bytes of local storage
 
-                        ; rbp-0x100     beginning of 256 bytes PAD space
-%define PAD             0x100
+                        ; rbp-0x100     beginning of 256 bytes INP space
+%define INP             0x100
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
 
@@ -123,12 +123,12 @@ fvm_run                 enter   0x508,0     ; n bytes of local storage
 %define STKUPR          0x1d8
                         ; rbp-0x1e0     OFILE handle
 %define OFILE           0x1e0
-                        ; rbp-0x1e8     PFILE handle for PAD buffer
-%define PFILE           0x1e8
-                        ; rbp-0x1f0     FILL state of PAD buffer
-%define PFILL           0x1f0
-                        ; rbp-0x1f8     POSition in PAD buffer
-%define PPOS            0x1f8
+                        ; rbp-0x1e8     IFILE handle for INP buffer
+%define IFILE           0x1e8
+                        ; rbp-0x1f0     FILL state of INP buffer
+%define IFILL           0x1f0
+                        ; rbp-0x1f8     POSition in INP buffer
+%define IPOS            0x1f8
                         ; rbp-0x200     LATEST word definition
 %define LATEST          0x200
                         ; rbp-0x300     buffer for . subroutine
@@ -212,13 +212,13 @@ _INTERPRET              dq      FPUINIT,INTERPRET,EXIT
                         mov     rax,[fvm_last_sysword]
                         mov     [rbp-LATEST],rax
 
-                        ; set up PPOS / PFILL
+                        ; set up IPOS / IFILL
                         xor     rax,rax
-                        mov     [rbp-PFILL],rax
-                        mov     [rbp-PPOS],rax
+                        mov     [rbp-IFILL],rax
+                        mov     [rbp-IPOS],rax
 
-                        ; set up PFILE
-                        mov     [rbp-PFILE],rax     ; 0 = STDIN
+                        ; set up IFILE
+                        mov     [rbp-IFILE],rax     ; 0 = STDIN
 
                         ; set up OFILE
                         inc     rax
@@ -1257,26 +1257,26 @@ _fpowl                  push    rsi
                         mov     [r15],rbx
                         NEXT
 
-                        ; to-in returns the address of the PAD offset
+                        ; to-in returns the address of the INP offset
                         DEFASM  ">IN",TOIN,0
                         CHKOVF  1
-                        lea     rax,[rbp-PPOS]
+                        lea     rax,[rbp-IPOS]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        ; returns the address of the number of chars in the PAD
+                        ; returns the address of the number of chars in the INP
                         DEFASM  ">MAX",TOMAX,0
                         CHKOVF  1
-                        lea     rax,[rbp-PFILL]
+                        lea     rax,[rbp-IFILL]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
 
-                        ; returns the address of the file handle for the PAD
-                        DEFASM  ">FILE",TOFILE,0
+                        ; returns the address of the file handle for the INP
+                        DEFASM  ">INP",TOINP,0
                         CHKOVF  1
-                        lea     rax,[rbp-PFILE]
+                        lea     rax,[rbp-IFILE]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
@@ -1297,10 +1297,10 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
-                        ; returns the address of the PAD buffer
-                        DEFASM  "PAD",PUSHPAD,0
+                        ; returns the address of the INP buffer
+                        DEFASM  "INP",PUSHINP,0
                         CHKOVF  1
-                        lea     rax,[rbp-PAD]
+                        lea     rax,[rbp-INP]
                         sub     r15,8
                         mov     [r15],rax
                         NEXT
@@ -1419,11 +1419,11 @@ _fpowl                  push    rsi
                         dq      GTZEROINT           ; >0
                         dq      EXIT
 
-                        ; read entire PAD
-                        DEFCOL  "PADREAD",PADREAD,0
-                        dq      TOFILE      ; >FILE
+                        ; read entire INP
+                        DEFCOL  "INPREAD",INPREAD,0
+                        dq      TOINP      ; >INP
                         dq      FETCH       ; @
-                        dq      PUSHPAD     ; PAD
+                        dq      PUSHINP     ; INP
                         dq      LIT,256     ; 256
                         ; ( pfile padaddr 256 )
                         dq      SYSREAD     ; SYSREAD
@@ -1569,10 +1569,10 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
-                        ; read a character from the PAD input
+                        ; read a character from the INP input
                         ; ( -- char )
                         ; returns -1 on error or EOF
-                        DEFCOL  "PADGETCH",PADGETCH,0
+                        DEFCOL  "INPGETCH",INPGETCH,0
                         ; check if input position is beyond maximum
 .nextchar               dq      TOIN,FETCH      ;   >IN @
                         dq      TOMAX,FETCH     ;   >MAX @
@@ -1580,7 +1580,7 @@ _fpowl                  push    rsi
                         ; if not, jump to continue
                         dq      CONDJUMP,.cont  ;   ?JUMP[.cont]
                         ; read a new block
-                        dq      PADREAD         ;   PADREAD
+                        dq      INPREAD         ;   INPREAD
                         ; check if the block size is zero
                         dq      TOMAX,FETCH     ;   >MAX @
                         ; if not, skip the following block
@@ -1592,7 +1592,7 @@ _fpowl                  push    rsi
                         ; then advance input position
 .cont                   dq      TOIN,FETCH      ;   >IN @
                         ; ( padpos )
-                        dq      PUSHPAD,ADDINT  ;   PAD +
+                        dq      PUSHINP,ADDINT  ;   INP +
                         ; ( padaddr )
                         dq      CHARFETCH       ;   C@
                         ; ( char )
@@ -1601,7 +1601,7 @@ _fpowl                  push    rsi
                         dq      EXIT
 
                         DEFCOL  "SKIPSPC",SKIPSPC,0
-.nextchar               dq      PADGETCH         ;  PADGETCH
+.nextchar               dq      INPGETCH         ;  INPGETCH
                         ; ( char )
                         dq      DUP,LIT,-1,EQINT ;  DUP -1 =
                         dq      CONDJUMP,.finish ;  ?JUMP[.finish]
@@ -1618,7 +1618,7 @@ _fpowl                  push    rsi
                         ; read next
                         dq      JUMP,.nextchar  ;   JUMP[.nextchar]
                         ; ( char )
-                        ; decrement character position for PAD
+                        ; decrement character position for INP
 .finish2                dq      TOIN,DECR       ;   >IN DECR
                         ; ( char )
 .finish                 dq      DROP            ;   DROP
@@ -1794,8 +1794,8 @@ _fpowl                  push    rsi
                         dq      CHARSTORE       ;   C!
                         ; skip whitespace
                         dq      SKIPSPC         ;   SKIPSPC
-                        ; read a character from the PAD
-.nextchar               dq      PADGETCH,DUP    ;   PADGETCH DUP
+                        ; read a character from the INP
+.nextchar               dq      INPGETCH,DUP    ;   INPGETCH DUP
                         dq      LIT,-1,EQINT    ;   -1 =
                         dq      CONDJUMP,.end   ;   ?JUMP[.end]
                         ; ( char )
@@ -1803,7 +1803,7 @@ _fpowl                  push    rsi
                         ; (SPC, TAB, NEWLINE, NUL)
                         dq      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
                         dq      CONDJUMP,.storechr ; ?JUMP[.storechr]
-                        ; decrement character position for PAD
+                        ; decrement character position for INP
                         dq      TOIN,DECR       ;   >IN DECR
                         ; end
                         ; (char)
@@ -2904,7 +2904,7 @@ fvm_douser              CHKOVF  1
 
                         ; if the input device is a TTY, output "ok"
                         DEFCOL  "OKAY",OKAY,0
-                        dq      TOFILE,FETCH        ; >FILE @
+                        dq      TOINP,FETCH        ; >INP @
                         dq      SYSISATTY           ; SYSISATTY
                         dq      CONDJUMP,.print     ; ?JUMP[.print]
                         dq      EXIT
@@ -3090,7 +3090,7 @@ fvm_douser              CHKOVF  1
 .numimmed               dq      JUMP,.nextword
 
                         DEFCOL  "(",LPAREN,F_IMMEDIATE
-.nextchar               dq      PADGETCH            ; PADGETCH
+.nextchar               dq      INPGETCH            ; INPGETCH
                         dq      DUP,LIT,-1,EQINT    ; -1 =
                         dq      CONDJUMP,.eof       ; ?JUMP[.end]
                         dq      DUP,LIT,')',EQINT   ; ')' =
@@ -3103,7 +3103,7 @@ fvm_douser              CHKOVF  1
                         dq      EXIT
 
                         DEFCOL  "\",LINECOMMENT,F_IMMEDIATE
-.nextchar               dq      PADGETCH            ; PADGETCH
+.nextchar               dq      INPGETCH            ; INPGETCH
                         dq      DUP,LIT,-1,EQINT    ; -1 =
                         dq      CONDJUMP,.eof       ; ?JUMP[.end]
                         dq      DUP,LIT,10,EQINT    ; '\n' =
