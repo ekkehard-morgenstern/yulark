@@ -24,7 +24,11 @@
 */
 
 #include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #include <stdio.h>
+
+#include <unistd.h>
 
 extern void fvm_run( void* mem, size_t siz, size_t rsz );
 
@@ -32,6 +36,19 @@ extern void fvm_run( void* mem, size_t siz, size_t rsz );
 #define RSTKSIZE    8192U
 
 static char memory[MEMSIZE];
+
+// debugging function for floating-point
+void _dbgfdot( uint64_t data ) {
+    char tmp[256];
+    union {
+        uint64_t uival;
+        double   dval;
+    } u;
+    u.uival = data;
+    tmp[0] = '\0';
+    snprintf( tmp, 256U, "%g ", u.dval );
+    write( 1, tmp, strlen(tmp) );
+}
 
 int main( int argc, char** argv ) {
 

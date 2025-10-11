@@ -28,6 +28,7 @@
 
                         global      fvm_run
                         extern      isatty
+                        extern      _dbgfdot
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -3482,8 +3483,11 @@ _fixupexp               mov         r10,rdi ; pointer beyond end of target
                         sub         dx,cx
                         cmp         dx,0
                         je          .noshift
+                        jge         .posdiff
+                        ; dx (maxdig) - cx (totdig) < 0
+                        mov         dx,cx
                         ; compare exponent against that
-                        neg         ax
+.posdiff                neg         ax
                         cmp         ax,dx
                         jle         .neglessmax
                         mov         ax,dx   ; limit to dx
@@ -3632,6 +3636,7 @@ _fixupexp               mov         r10,rdi ; pointer beyond end of target
                         push    rax
                         add     r15,40
                         call    _fixupexp
+                        add     rsp,8
                         mov     [r15+8],rax     ; store tremain
                         mov     [r15],rdx       ; store new exponent
                         NEXT
@@ -4524,6 +4529,16 @@ _dig2chr                movzx   rax,al
 .badend:                ; not a finite normal number
 .notemp                 dq      DROP,LIT,0.0,LIT,0      ; DROP 0.0 0
                         dq      EXIT
+
+                        ; output a floating-point value in base 10 for
+                        ; debugging purposes
+                        ; ( number -- )
+                        DEFCOL  "DBGFDOT",DBGFDOT,0
+                        dq      LIT,1,LIT,_dbgfdot      ; 1 [_dbgfdot]
+                        dq      CALLC                   ; CALLC
+                        dq      DROP,EXIT
+.fmt                    db      "DBG: %g",10,0
+                        align   8
 
                         ; Print floating-point number using number BASE
                         ; ( number -- )
