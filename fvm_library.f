@@ -51,9 +51,12 @@
     ( char )
     \ check for space or EOF
     DUP ?EOF OVER ?SPC OR UNLESS
+        ( char )
         \ if not: go back one character
         >IN DECR
     THEN
+    ( char )
+    DROP
 ;
 
 \ read a string literal from the input, skipping
