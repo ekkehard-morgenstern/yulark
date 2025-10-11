@@ -3305,6 +3305,136 @@ fvm_douser              CHKOVF  1
                         mov     [rax],rbx       ; put position for after THEN
                         NEXT
 
+                        ; BEGIN ... AGAIN works like this:
+                        ;   - BEGIN marks the beginning of a loop
+                        ;   - AGAIN restarts the loop body from the beginning
+                        ;
+                        ; BEGIN ... <n> UNTIL works like this:
+                        ;   - BEGIN marks the beginning of a loop
+                        ;   - UNTIL pops the flag <n> and if false, jumps to
+                        ;     the beginning of the loop body
+                        ;
+                        ; BEGIN ... <n> WHILE ... REPEAT works like this:
+                        ;   - BEGIN marks the beginning of a loop
+                        ;   - WHILE pops the flag <n> and
+                        ;       - if false, jumps to the code after REPEAT
+                        ;       - if true, executes the code after WHILE
+                        ;   - REPEAT jumps back to the code after BEGIN
+                        ;
+                        ; BEGIN compiles to:
+                        ;   (nothing)
+                        ; then pushes the current HERE pointer onto the return
+                        ; stack using HERE >R
+                        ;
+                        ; AGAIN compiles to:
+                        ;   JUMP <addr>
+                        ; by popping the jump address from the return stack
+                        ; using R> ,
+                        ;
+                        ; UNTIL compiles to
+                        ;   ?FALSE ?CONDJUMP <addr>
+                        ; by popping the jump address from the return stack
+                        ; using R> ,
+                        ;
+                        ; WHILE compiles to
+                        ;   ?FALSE ?CONDJUMP <0>
+                        ; then pushes the address of the <0> to the return stack
+                        ; to be filled out later
+                        ;
+                        ; REPEAT compiles to
+                        ;   JUMP <n>
+                        ; while patching the address after REPEAT to the
+                        ; location popped off the return stack using R>, and
+                        ; popping the jump address from the return stack
+                        ; using R> ,
+
+                        ; BEGIN compiles to:
+                        ;   (nothing)
+                        ; then pushes the current HERE pointer onto the return
+                        ; stack using HERE >R
+                        DEFASM  "BEGIN",BEGIN,F_IMMEDIATE
+                        RCHKOVF 1
+                        sub     r14,8
+                        mov     [r14],rbx
+                        NEXT
+
+                        ; AGAIN compiles to:
+                        ;   JUMP <addr>
+                        ; by popping the jump address from the return stack
+                        ; using R> ,
+                        DEFASM  "AGAIN",AGAIN,F_IMMEDIATE
+                        RCHKUNF 1
+                        DSPCOVF 2
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,JUMP
+                        stosq
+                        mov     rax,[r14]
+                        add     r14,8
+                        stosq
+                        mov     rbx,rdi
+                        NEXT
+
+                        ; UNTIL compiles to
+                        ;   ?FALSE ?CONDJUMP <addr>
+                        ; by popping the jump address from the return stack
+                        ; using R> ,
+                        DEFASM  "UNTIL",UNTIL,F_IMMEDIATE
+                        RCHKUNF 1
+                        DSPCOVF 3
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,ISFALSE
+                        stosq
+                        lea     rax,CONDJUMP
+                        stosq
+                        mov     rax,[r14]
+                        add     r14,8
+                        stosq
+                        mov     rbx,rdi
+                        NEXT
+
+                        ; WHILE compiles to
+                        ;   ?FALSE ?CONDJUMP <0>
+                        ; then pushes the address of the <0> to the return stack
+                        ; to be filled out later
+                        DEFASM  "WHILE",WHILE,F_IMMEDIATE
+                        RCHKOVF 1
+                        DSPCOVF 3
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,ISFALSE
+                        stosq
+                        lea     rax,CONDJUMP
+                        stosq
+                        sub     r14,8
+                        mov     [r14],rdi
+                        xor     rax,rax
+                        stosq
+                        mov     rbx,rdi
+                        NEXT
+
+                        ; REPEAT compiles to
+                        ;   JUMP <n>
+                        ; while patching the address after REPEAT to the
+                        ; location popped off the return stack using R>, and
+                        ; popping the jump address from the return stack
+                        ; using R> ,
+                        DEFASM  "REPEAT",REPEAT,F_IMMEDIATE
+                        RCHKUNF 1
+                        DSPCOVF 2
+                        mov     rdi,rbx
+                        cld
+                        lea     rax,JUMP
+                        stosq
+                        mov     rax,[r14+8] ; address after BEGIN
+                        stosq
+                        mov     rax,[r14]   ; address of WHILE's JUMP addr
+                        mov     [rax],rdi
+                        mov     rbx,rdi
+                        add     r14,16
+                        NEXT
+
                         ; move bytes
                         ; automatically handle overlapping copies
                         ; ( source target count -- )
