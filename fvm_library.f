@@ -95,17 +95,22 @@
     DROP
 ;
 
+\ get address and length of a counted string
+( addr -- addr+1 len )
+: COUNT
+    ( addr )
+    DUP C@
+    ( addr len )
+    SWAP 1+ SWAP
+;
+
 \ output a string literal
 \ ( -- )
 : ."
     \ read literal into STRBUF
     STRLIT
     \ output the buffer
-    STRBUF DUP C@
-    ( addr len )
-    SWAP 1+ SWAP
-    ( addr len )
-    TYPE
+    STRBUF COUNT TYPE
 ;
 
 ." Hello world!"
