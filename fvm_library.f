@@ -106,6 +106,7 @@
 
 \ output a string literal
 \ ( -- )
+\ TBD what to do when compiling
 : ."
     \ read literal into STRBUF
     STRLIT
@@ -113,4 +114,7 @@
     STRBUF COUNT TYPE
 ;
 
-." Hello world!"
+." YULARK FORTH Engine" 10 EMIT
+." Copyright © 2025  Ekkehard Morgenstern" 10 EMIT
+." See LICENSE file for license information." 10 EMIT
+OKAY

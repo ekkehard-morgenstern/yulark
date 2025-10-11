@@ -75,13 +75,20 @@
                         ; rdi - memory block
                         ; rsi - memory size
                         ; rdx - return stack size
-fvm_run                 enter   0x508,0     ; n bytes of local storage
+                        ; rcx - library source
+                        ; r8  - library size
+fvm_run                 enter   0x500,0     ; n bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes INP space
 %define INP             0x100
                         ; rbp-0x120     beginning of 32 bytes of NAME space
 %define NAME            0x120
-
+                        ; rbp-0x128     evaluation buffer position
+%define EVALPOS         0x128
+                        ; rbp-0x130     size of evaluation source buffer
+%define EVALSIZE        0x130
+                        ; rbp-0x138     evaluation source buffer
+%define EVALBUF         0x138
                         ; rbp-0x140     dictionary space upper bound
 %define DSPCUPR         0x140
                         ; rbp-0x148     dictionary space lower bound
@@ -144,6 +151,12 @@ fvm_run                 enter   0x508,0     ; n bytes of local storage
                         push    r13
                         push    r12
                         push    rbx
+
+                        ; set up evaluation buffer, size and position
+                        mov     [rbp-EVALBUF],rcx
+                        mov     [rbp-EVALSIZE],r8
+                        xor     rax,rax
+                        mov     [rbp-EVALPOS],rax
 
                         ; set up RSP
                         ; in the beginning, it points just beyond the end of
@@ -1261,16 +1274,40 @@ _fpowl                  push    rsi
                         ; to-in returns the address of the INP offset
                         DEFASM  ">IN",TOIN,0
                         CHKOVF  1
-                        lea     rax,[rbp-IPOS]
-                        sub     r15,8
+                        ; if an evaluation is in progress, return that address
+                        mov     rax,[rbp-EVALBUF]
+                        test    rax,rax
+                        jz      .noeval
+                        ; first check if the end of the buffer has been reached
+                        mov     rax,[rbp-EVALPOS]
+                        cmp     rax,[rbp-EVALSIZE]
+                        jae     .evaldone
+                        ; nope, continue
+                        lea     rax,[rbp-EVALPOS]
+                        jmp     .finish
+                        ; yes, end of evaluation: zap fields
+.evaldone               xor     rax,rax
+                        mov     [rbp-EVALBUF],rax
+                        mov     [rbp-EVALSIZE],rax
+                        mov     [rbp-EVALPOS],rax
+                        ; nope, return that of the file input buffer position
+.noeval                 lea     rax,[rbp-IPOS]
+.finish                 sub     r15,8
                         mov     [r15],rax
                         NEXT
 
                         ; returns the address of the number of chars in the INP
                         DEFASM  ">MAX",TOMAX,0
                         CHKOVF  1
-                        lea     rax,[rbp-IFILL]
-                        sub     r15,8
+                        ; if an evaluation is in progress, return that address
+                        mov     rax,[rbp-EVALBUF]
+                        test    rax,rax
+                        jz      .noeval
+                        lea     rax,[rbp-EVALSIZE]
+                        jmp     .finish
+                        ; nope, return that of the file input buffer size
+.noeval                 lea     rax,[rbp-IFILL]
+.finish                 sub     r15,8
                         mov     [r15],rax
                         NEXT
 
@@ -1301,8 +1338,13 @@ _fpowl                  push    rsi
                         ; returns the address of the INP buffer
                         DEFASM  "INP",PUSHINP,0
                         CHKOVF  1
+                        ; if an evaluation is in progress, return that address
+                        mov     rax,[rbp-EVALBUF]
+                        test    rax,rax
+                        jnz     .finish
+                        ; nope, return that of the file input buffer size
                         lea     rax,[rbp-INP]
-                        sub     r15,8
+.finish                 sub     r15,8
                         mov     [r15],rax
                         NEXT
 

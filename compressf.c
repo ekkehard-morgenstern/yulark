@@ -22,41 +22,46 @@
 *       Mail: Ekkehard Morgenstern, Mozartstr. 1, D-76744 Woerth am Rhein,
 *             Germany, Europe
 */
-
 #include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#include <stdbool.h>
 #include <stdio.h>
 
-#include <unistd.h>
+static bool isspc( int c ) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0';
+}
 
-extern const char fvm_library[];
-extern size_t fvm_library_size;
+static int rdch0( void ) {
+    int c = fgetc( stdin );
+    if ( c == EOF ) return c;
+    if ( c == '(' ) {
+        do { c = fgetc( stdin ); } while ( c != ')' && c != EOF );
+        return ' ';
+    }
+    if ( c == '\\' ) {
+        do { c = fgetc( stdin ); } while ( c != '\n' && c != EOF );
+        if ( c == '\n' ) ungetc( c, stdin );
+        return ' ';
+    }
+    return c;
+}
 
-extern void fvm_run( void* mem, size_t siz, size_t rsz,
-    const char* lib, size_t szlib );
-
-#define MEMSIZE     131072U
-#define RSTKSIZE    8192U
-
-static char memory[MEMSIZE];
-
-// debugging function for floating-point
-void _dbgfdot( uint64_t data ) {
-    char tmp[256];
-    union {
-        uint64_t uival;
-        double   dval;
-    } u;
-    u.uival = data;
-    tmp[0] = '\0';
-    snprintf( tmp, 256U, "%g ", u.dval );
-    write( 1, tmp, strlen(tmp) );
+static int rdch1( void ) {
+    int c = rdch0();
+    if ( isspc(c) ) {
+        do {
+            c = rdch0();
+        } while ( isspc(c) );
+        if ( c != EOF ) ungetc( c, stdin );
+        return ' ';
+    }
+    return c;
 }
 
 int main( int argc, char** argv ) {
-
-    fvm_run( memory, MEMSIZE, RSTKSIZE, fvm_library, fvm_library_size );
-
+    for (;;) {
+        int c = rdch1();
+        if ( c == EOF ) break;
+        fputc( c, stdout );
+    }
     return EXIT_SUCCESS;
 }
