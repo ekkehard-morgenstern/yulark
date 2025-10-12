@@ -48,7 +48,7 @@ int main( int argc, char** argv ) {
             break;
         }
         if ( x == 0 ) fputc( '"', stdout );
-        if ( c == '\"' ) { fputc( '\\', stdout ); ++x; }
+        if ( c == '\"' || c == '\\' ) { fputc( '\\', stdout ); ++x; }
         fputc( c, stdout ); ++cnt;
         ++x;
         if ( x >= margin ) {

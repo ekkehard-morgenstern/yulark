@@ -30,15 +30,25 @@ static bool isspc( int c ) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '\0';
 }
 
+static bool quote = false;
+
 static int rdch0( void ) {
     int c = fgetc( stdin );
     if ( c == EOF ) return c;
-    if ( c == '(' ) {
+    if ( c == '"' ) quote = !quote;
+    if ( !quote && c == '(' ) {
         do { c = fgetc( stdin ); } while ( c != ')' && c != EOF );
         return ' ';
     }
-    if ( c == '\\' ) {
+    if ( !quote && c == '\\' ) {
         do { c = fgetc( stdin ); } while ( c != '\n' && c != EOF );
+        if ( c == '\n' ) ungetc( c, stdin );
+        return ' ';
+    } else if ( c == '\\' ) {
+        do {
+            c = fgetc( stdin );
+            if ( c == '"' ) quote = !quote;
+        } while ( c != '\n' && c != EOF );
         if ( c == '\n' ) ungetc( c, stdin );
         return ' ';
     }
@@ -47,7 +57,7 @@ static int rdch0( void ) {
 
 static int rdch1( void ) {
     int c = rdch0();
-    if ( isspc(c) ) {
+    if ( !quote && isspc(c) ) {
         do {
             c = rdch0();
         } while ( isspc(c) );
