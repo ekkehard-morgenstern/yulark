@@ -27,3 +27,8 @@ x.lst
 xx
 xx.lst
 y
+fvm_yulark_c.c
+fvm_yulark_c.o
+fvm_yulark_comp.f
+test_yulark
+test_yulark.lst

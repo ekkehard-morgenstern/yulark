@@ -10,7 +10,7 @@ echo "release build"
 fi
 nasm -f elf64 -w+all -w+error $ASMOPT -l fvm_asm.lst -o fvm_asm.o fvm_asm.nasm
 objdump --reloc fvm_asm.o >>fvm_asm.lst
-CCOPT="-Wall -Werror -O3 -march=native"
+CCOPT="-Wall -Werror -O3 -march=native -mtune=native"
 gcc $CCOPT -o compressf compressf.c
 ./compressf <fvm_library.f >fvm_library_comp.f
 gcc $CCOPT -o compf2src compf2src.c
