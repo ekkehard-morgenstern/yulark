@@ -36,8 +36,8 @@ extern size_t fvm_library_size;
 extern void fvm_run( void* mem, size_t siz, size_t rsz,
     const char* lib, size_t szlib );
 
-#define MEMSIZE     262144U
-#define RSTKSIZE    16384U
+#define MEMSIZE     1048576U
+#define RSTKSIZE    65536U
 
 static char memory[MEMSIZE];
 

@@ -1271,6 +1271,17 @@ _fpowl                  push    rsi
                         mov     [r15],rbx
                         NEXT
 
+                        ; returns the number of bytes remaining in the
+                        ; dictionary space
+                        ; ( -- n )
+                        DEFASM  "?FREEDSP",FREEDSP,0
+                        CHKOVF  1
+                        sub     r15,8
+                        mov     rax,[rbp-DSPCUPR]
+                        sub     rax,rbx
+                        mov     [r15],rax
+                        NEXT
+
                         ; to-in returns the address of the INP offset
                         DEFASM  ">IN",TOIN,0
                         CHKOVF  1

@@ -793,5 +793,40 @@
 ." " LF
 ;
 
+: FREEMSG
+    >INP @ SYSISATTY IF
+        32 EMIT ?FREEDSP . ." bytes free in dictionary space." LF
+    THEN
+;
+
+\ output word list in ascending order (requires recursion)
+\ ( defptr -- )
+: WORDSR
+    UNHIDE
+    DUP <>0 IF
+        ( defptr )
+        \ get pointer to previous definition and call recursively
+        DUP @ WORDSR
+        ( defptr )
+        8 +
+        ( namefld )
+        DUP C@ 31 AND
+        ( namefld length )
+        SWAP 1+ SWAP
+        TYPE 32 EMIT
+    ELSE
+        DROP
+    THEN
+;
+
+\ output word list in ascending order (requires recursion)
+: WORDS
+    >LATEST @
+    ( defptr )
+    WORDSR
+    10 EMIT
+;
+
 BANNER
+FREEMSG
 OKAY
