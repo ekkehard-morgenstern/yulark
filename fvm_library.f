@@ -115,7 +115,7 @@
         \ read literal into STRBUF
         STRLIT
         \ compile string into the word with output code
-        'CFA JUMP ,
+        COMPILE JUMP
         0 ,
         \ HERE-8 is the address where to store the jump location
         HERE 8 -
@@ -148,21 +148,24 @@
         ( tgtaddr srclen )
         SWAP
         \ ( srclen tgtaddr )
-        OVER . HEX DUP . DECIMAL
         LITERAL LITERAL
         \ compile TYPE
-        'CFA TYPE ,
-        33 .
+        COMPILE TYPE
     ELSE
         \ read literal into STRBUF
         STRLIT
         \ output the buffer
-        35 EMIT
         STRBUF COUNT TYPE
     THEN
 ;
 
-." YULARK FORTH Engine" 10 EMIT
-." Copyright © 2025  Ekkehard Morgenstern" 10 EMIT
-." See LICENSE file for license information." 10 EMIT
+: BANNER
+    >INP @ SYSISATTY IF
+        ." YULARK FORTH Engine" 10 EMIT
+        ." Copyright © 2025  Ekkehard Morgenstern" 10 EMIT
+        ." See LICENSE file for license information." 10 EMIT
+    THEN
+;
+
+BANNER
 OKAY

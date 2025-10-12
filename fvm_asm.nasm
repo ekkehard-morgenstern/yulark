@@ -3016,17 +3016,25 @@ fvm_douser              CHKOVF  1
                         ; except consume its parameter
 .immed                  dq      DROP,EXIT
 
-                        ; compile the following word
-                        ; if in interpret mode, do nothing
-                        DEFCOL  "[COMPILE]",COMPILE,0
-                        dq      LIT,42,EMITCHAR
+                        ; copy the word next in execution into the
+                        ; dictionary and skip it
+                        DEFASM "COMPILE",COMPILE,0
+                        DSPCOVF 1
+                        mov     rax,[r13]
+                        mov     [rbx],rax
+                        add     rbx,8
+                        add     r13,8
+                        NEXT
+
+                        ; force compilation of the following word
+                        ; if in immediate mode, do nothing
+                        DEFCOL  "[COMPILE]",BCOMPILE,0
                         dq      QUOTECFA            ; 'CFA
-                        dq      OKAY
                         ; ( cfa )
                         ; check if we're in immediate mode
                         dq      INIMMEDIATE         ; ?IMMEDIATE
                         dq      CONDJUMP,.immed     ; ?JUMP[.immed]
-                        ; not immediate mode: compile cfa
+                        ; not immediate mode: compile into dictionary
                         dq      COMMA               ; ,
                         ; ( )
                         ; finished
@@ -3037,7 +3045,7 @@ fvm_douser              CHKOVF  1
 
                         ; leave the CFA of the following word on the stack
                         ; ( -- cfa )
-                        DEFCOL  "'CFA",QUOTECFA,F_IMMEDIATE
+                        DEFCOL  "'CFA",QUOTECFA,0
                         ; read next word from input, exit FORTH at EOF
                         dq      GETWORD             ; WORD
                         ; ( addr len )
@@ -3059,7 +3067,7 @@ fvm_douser              CHKOVF  1
                         ; leave the address of the parameter field
                         ; of the following word on the stack.
                         ; ( -- paraddr )
-                        DEFCOL  "'USR",QUOTEUSR,F_IMMEDIATE
+                        DEFCOL  "'USR",QUOTEUSR,0
                         ; get CFA of the follwing word, fail if not found
                         dq      QUOTECFA            ; 'CFA
                         ; ( cfa )
