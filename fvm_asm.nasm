@@ -2913,6 +2913,7 @@ fvm_douser              CHKOVF  1
                         dq      TOLATEST,FETCH      ; >LATEST @
                         ; ( wordaddr )
                         dq      LIT,8,ADDINT        ; 8 +
+                        ; ( flagaddr )
                         dq      DUP,CHARFETCH       ; DUP C@
                         ; ( flagaddr flags )
                         dq      LIT,F_IMMEDIATE,BINOR ; [F_IMMEDIATE] OR
@@ -2999,7 +3000,7 @@ fvm_douser              CHKOVF  1
                         ; the specified number on the stack. In immediate mode,
                         ; it does nothing.
                         ; ( number -- )
-                        DEFCOL  "LITERAL",LITERAL,F_IMMEDIATE
+                        DEFCOL  "LITERAL",LITERAL,0
                         ; check if we're in immediate mode
                         dq      INIMMEDIATE         ; ?IMMEDIATE
                         dq      CONDJUMP,.immed     ; ?JUMP[.immed]
@@ -3015,11 +3016,28 @@ fvm_douser              CHKOVF  1
                         ; except consume its parameter
 .immed                  dq      DROP,EXIT
 
-                        ; leave the address of the parameter field
-                        ; of the following word on the stack.
-                        ; if compiling, generate code that pushes that
-                        ; address on the stack instead.
-                        DEFCOL  "'",QUOTE,F_IMMEDIATE
+                        ; compile the following word
+                        ; if in interpret mode, do nothing
+                        DEFCOL  "[COMPILE]",COMPILE,0
+                        dq      LIT,42,EMITCHAR
+                        dq      QUOTECFA            ; 'CFA
+                        dq      OKAY
+                        ; ( cfa )
+                        ; check if we're in immediate mode
+                        dq      INIMMEDIATE         ; ?IMMEDIATE
+                        dq      CONDJUMP,.immed     ; ?JUMP[.immed]
+                        ; not immediate mode: compile cfa
+                        dq      COMMA               ; ,
+                        ; ( )
+                        ; finished
+                        dq      EXIT
+                        ; [COMPILE] does nothing in immediate mode
+                        ; ( cfa )
+.immed                  dq      DROP,EXIT
+
+                        ; leave the CFA of the following word on the stack
+                        ; ( -- cfa )
+                        DEFCOL  "'CFA",QUOTECFA,F_IMMEDIATE
                         ; read next word from input, exit FORTH at EOF
                         dq      GETWORD             ; WORD
                         ; ( addr len )
@@ -3029,8 +3047,24 @@ fvm_douser              CHKOVF  1
                         ; check if zero
                         dq      DUP,EQZEROINT       ; DUP =0
                         dq      CONDJUMP,.notfound  ; ?JUMP[.notfound]
-                        ; found, compute CFA, and fetch codeword
-                        dq      TOCFA,DUP,FETCH     ; >CFA DUP @
+                        ; found, compute CFA
+                        dq      TOCFA               ; >CFA
+                        ; ( cfa )
+                        dq      EXIT
+                        ; not found
+                        ; ( 0 )
+.notfound               dq      DROP                ; DROP
+                        dq      JMPSYS,fvm_notfound ; JMPSYS[.notfound]
+
+                        ; leave the address of the parameter field
+                        ; of the following word on the stack.
+                        ; ( -- paraddr )
+                        DEFCOL  "'USR",QUOTEUSR,F_IMMEDIATE
+                        ; get CFA of the follwing word, fail if not found
+                        dq      QUOTECFA            ; 'CFA
+                        ; ( cfa )
+                        ; found, fetch codeword
+                        dq      DUP,FETCH           ; DUP @
                         ; ( cfa codeword )
                         ; check if it's a user word
                         dq      LIT,fvm_douser,NEINT ; [fvm_douser] <>
@@ -3038,6 +3072,19 @@ fvm_douser              CHKOVF  1
                         ; ( cfa )
                         ; yes it is, calculate parameter address
                         dq      LIT,16,ADDINT       ; 16 +
+                        ; ( paraddr )
+                        dq      EXIT
+                        ; ( cfa )
+                        ; word has no parameter field
+.noparam                dq      DROP                ; DROP
+                        dq      JMPSYS,fvm_noparam  ; JMPSYS[.noparam]
+
+                        ; leave the address of the parameter field
+                        ; of the following word on the stack.
+                        ; if compiling, generate code that pushes that
+                        ; address on the stack instead.
+                        DEFCOL  "'",QUOTE,F_IMMEDIATE
+                        dq      QUOTEUSR            ; 'USR
                         ; ( paraddr )
                         ; check for immediate mode:
                         dq      INIMMEDIATE         ; ?IMMEDIATE
@@ -3049,14 +3096,6 @@ fvm_douser              CHKOVF  1
                         ; ( paraddr )
                         ; leave address on the stack
 .immed                  dq      EXIT
-                        ; ( cfa )
-                        ; word has no parameter field
-.noparam                dq      DROP                ; DROP
-                        dq      JMPSYS,fvm_noparam  ; JMPSYS[.noparam]
-                        ; ( 0 )
-                        ; not found
-.notfound               dq      DROP                ; DROP
-                        dq      JMPSYS,fvm_notfound ; JMPSYS[.notfound]
 
                         ; finally, the interpreter
                         ; reads words and runs them until EOF occurs
@@ -3087,7 +3126,9 @@ fvm_douser              CHKOVF  1
                         ; has an F_IMMEDIATE mark on it. if so, act as if
                         ; we're in immediate mode
                         dq      DUP,LIT,8,ADDINT    ; DUP 8 +
+                        ; ( defptr flagaddr )
                         dq      CHARFETCH           ; C@
+                        ; ( defptr char )
                         dq      LIT,F_IMMEDIATE,BINAND ; [F_IMMEDIATE] AND
                         dq      CONDJUMP,.immediate
                         ; ( defptr )
@@ -3182,26 +3223,18 @@ fvm_douser              CHKOVF  1
                         ; done
                         dq      EXIT
 
+                        ; reserve n words of space at HERE
+                        ; dangerous when called from interactive mode
+                        ; but since it's so useful (like ","), I now permit
+                        ; it in any mode regardless
                         ; ( n -- )
                         DEFASM  "ALLOT",ALLOT,0
                         CHKUNF  1
                         mov     rdx,[r15]
                         add     r15,8
-                        ; get CFA field for latest definition
-                        mov     rdi,[rbp-LATEST]
-                        push    rdx
-                        call    _tocfa
-                        pop     rdx
-                        mov     rdi,rax
-                        ; check if it's a user definition
-                        lea     rax,fvm_douser
-                        cmp     [rdi],rax
-                        je      .ok
-                        ; nope, trigger error
-                        jmp     fvm_noparam
-                        ; yes, check if increment value
+                        ; check if increment value
                         ; is negative
-.ok                     test    rdx,rdx
+                        test    rdx,rdx
                         jl      .negcount
                         ; it's positive, multiply by 8
                         shl     rdx,3
@@ -3485,6 +3518,7 @@ fvm_douser              CHKOVF  1
                         mov     rsi,[r15+16]
                         mov     rdi,[r15+8]
                         mov     rcx,[r15]
+                        add     r15,24
                         jrcxz   .done       ; no change (count zero)
                         cmp     rsi,rdi
                         je      .done       ; no change (src/tgt identical)
@@ -3522,6 +3556,7 @@ fvm_douser              CHKOVF  1
                         mov     rdi,[r15+8]
                         and     rdi,rax         ; quadword align pointer
                         mov     rcx,[r15]
+                        add     r15,24
                         jrcxz   .done           ; no change (count zero)
                         cmp     rsi,rdi
                         je      .done           ; no change (src/tgt identical)

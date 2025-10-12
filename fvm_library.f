@@ -105,13 +105,61 @@
 ;
 
 \ output a string literal
+\ when compiling, put the string at HERE and generate code to output it
+\ compiles to:
+\   JUMP <pos> <str> LIT[str] LIT[len] TYPE
+\
 \ ( -- )
-\ TBD what to do when compiling
-: ."
-    \ read literal into STRBUF
-    STRLIT
-    \ output the buffer
-    STRBUF COUNT TYPE
+: ." IMMEDIATE
+    ?IMMEDIATE UNLESS
+        \ read literal into STRBUF
+        STRLIT
+        \ compile string into the word with output code
+        'CFA JUMP ,
+        0 ,
+        \ HERE-8 is the address where to store the jump location
+        HERE 8 -
+        ( pos )
+        \ get buffer address and length
+        STRBUF COUNT HERE
+        ( pos srcaddr srclen tgtaddr )
+        \ allot space
+        OVER 7 + 7 NOT AND 8 / ALLOT
+        \ copy args to CMOVE
+        ( pos srcaddr srclen tgtaddr )
+        SWAP
+        ( pos srcaddr tgtaddr srclen )
+        2DUP SWAP
+        ( pos srcaddr tgtaddr srclen srclen tgtaddr )
+        5 ROLL
+        ( pos tgtaddr srclen srclen tgtaddr srcaddr )
+        SWAP
+        ( pos tgtaddr srclen srclen srcaddr tgtaddr )
+        ROT
+        ( pos tgtaddr srclen srcaddr tgtaddr srclen )
+        \ copy string over
+        CMOVE
+        ( pos tgtaddr srclen )
+        ROT
+        ( tgtaddr srclen pos )
+        \ patch the JUMP location to HERE
+        HERE SWAP !
+        \ compile string address and length
+        ( tgtaddr srclen )
+        SWAP
+        \ ( srclen tgtaddr )
+        OVER . HEX DUP . DECIMAL
+        LITERAL LITERAL
+        \ compile TYPE
+        'CFA TYPE ,
+        33 .
+    ELSE
+        \ read literal into STRBUF
+        STRLIT
+        \ output the buffer
+        35 EMIT
+        STRBUF COUNT TYPE
+    THEN
 ;
 
 ." YULARK FORTH Engine" 10 EMIT
