@@ -159,6 +159,116 @@
     THEN
 ;
 
+\ quote a string literal
+\ when compiling, put the string at HERE and generate code to output address
+\ and length fields
+\ compiles to:
+\   JUMP <pos> <str> LIT[str] LIT[len]
+\
+\ ( -- addr len )
+: S" IMMEDIATE \ " \ (terminating quote is for compressor)
+    ?IMMEDIATE UNLESS
+        \ read literal into STRBUF
+        STRLIT
+        \ compile string into the word with output code
+        COMPILE JUMP
+        0 ,
+        \ HERE-8 is the address where to store the jump location
+        HERE 8 -
+        ( pos )
+        \ get buffer address and length
+        STRBUF COUNT HERE
+        ( pos srcaddr srclen tgtaddr )
+        \ allot space
+        OVER 7 + 7 NOT AND 8 / ALLOT
+        \ copy args to CMOVE
+        ( pos srcaddr srclen tgtaddr )
+        SWAP
+        ( pos srcaddr tgtaddr srclen )
+        2DUP SWAP
+        ( pos srcaddr tgtaddr srclen srclen tgtaddr )
+        5 ROLL
+        ( pos tgtaddr srclen srclen tgtaddr srcaddr )
+        SWAP
+        ( pos tgtaddr srclen srclen srcaddr tgtaddr )
+        ROT
+        ( pos tgtaddr srclen srcaddr tgtaddr srclen )
+        \ copy string over
+        CMOVE
+        ( pos tgtaddr srclen )
+        ROT
+        ( tgtaddr srclen pos )
+        \ patch the JUMP location to HERE
+        HERE SWAP !
+        \ compile string address and length
+        ( tgtaddr srclen )
+        SWAP
+        \ ( srclen tgtaddr )
+        LITERAL LITERAL
+    ELSE
+        \ read literal into STRBUF
+        STRLIT
+        \ output buffer info
+        STRBUF COUNT
+    THEN
+;
+
+\ quote a counted string literal
+\ when compiling, put the string at HERE and generate code to output address
+\ compiles to:
+\   JUMP <pos> <str> LIT[str]
+\
+\ ( -- addr )
+: C" IMMEDIATE \ " \ (terminating quote is for compressor)
+    ?IMMEDIATE UNLESS
+        \ read literal into STRBUF
+        STRLIT
+        \ compile string into the word with output code
+        COMPILE JUMP
+        0 ,
+        \ HERE-8 is the address where to store the jump location
+        HERE 8 -
+        ( pos )
+        \ get buffer address (at count byte) and length+1
+        STRBUF DUP C@ 1+
+        ( pos srcaddr srclen )
+        HERE
+        ( pos srcaddr srclen tgtaddr )
+        \ allot space
+        OVER 7 + 7 NOT AND 8 / ALLOT
+        \ copy args to CMOVE
+        ( pos srcaddr srclen tgtaddr )
+        SWAP
+        ( pos srcaddr tgtaddr srclen )
+        2DUP SWAP
+        ( pos srcaddr tgtaddr srclen srclen tgtaddr )
+        5 ROLL
+        ( pos tgtaddr srclen srclen tgtaddr srcaddr )
+        SWAP
+        ( pos tgtaddr srclen srclen srcaddr tgtaddr )
+        ROT
+        ( pos tgtaddr srclen srcaddr tgtaddr srclen )
+        \ copy string over
+        CMOVE
+        ( pos tgtaddr srclen )
+        ROT
+        ( tgtaddr srclen pos )
+        \ patch the JUMP location to HERE
+        HERE SWAP !
+        \ compile string address and length
+        ( tgtaddr srclen )
+        SWAP
+        \ ( srclen tgtaddr )
+        \ only generate code to push address, length not needed
+        LITERAL DROP
+    ELSE
+        \ read literal into STRBUF
+        STRLIT
+        \ output buffer info
+        STRBUF
+    THEN
+;
+
 : LF 10 EMIT ;
 
 : BANNER
@@ -826,6 +936,23 @@
     WORDSR
     10 EMIT
 ;
+
+\ output integer content of address
+( addr -- )
+: ? @ . ;
+
+\ output unsigned integer content of address
+( addr -- )
+: U? @ U. ;
+
+\ output floating-point content of address
+( addr -- )
+: F? @ F. ;
+
+\ duplicate n if it is non-zero
+( n -- n [n] )
+: ?DUP DUP IF DUP THEN ;
+
 
 BANNER
 FREEMSG
