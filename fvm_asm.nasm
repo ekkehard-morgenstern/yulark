@@ -29,6 +29,8 @@
                         global      fvm_run
                         extern      isatty
                         extern      _dbgfdot
+                        extern      _xalloc
+                        extern      _xfree
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -4916,6 +4918,24 @@ _dig2chr                movzx   rax,al
 
                         ; ( number )
 .notnormal              dq      DROP,EXIT               ; DROP
+
+                        ; allocate a block of system memory
+                        ; NOTE: This is intended for short-lived memory blocks.
+                        ; ( size -- addr )
+                        DEFCOL  "XALLOC",XALLOC,0
+                        dq      LIT,1,LIT,_xalloc
+                        dq      CALLC
+                        ; ( addr )
+                        dq      EXIT
+
+                        ; free a block of system memory
+                        ; ( addr )
+                        DEFCOL  "XFREE",XFREE,0
+                        dq      LIT,1,LIT,_xfree
+                        dq      CALLC
+                        ; drop result
+                        dq      DROP
+                        dq      EXIT
 
                         section .rodata
 

@@ -54,6 +54,30 @@ void _dbgfdot( uint64_t data ) {
     write( 1, tmp, strlen(tmp) );
 }
 
+// system memory management interface
+uint64_t _xalloc( uint64_t size ) {
+    void* block = malloc( (size_t) size );
+    if ( block == 0 ) {
+        fprintf( stderr, "? out of memory\n" );
+        exit( EXIT_FAILURE );
+    }
+    union {
+        uint64_t uval;
+        void*    pval;
+    } u;
+    u.uval = 0;
+    u.pval = block;
+    return u.uval;
+}
+void _xfree( uint64_t ptr ) {
+    union {
+        uint64_t uval;
+        void* pval;
+    } u;
+    u.uval = ptr;
+    free( u.pval );
+}
+
 int main( int argc, char** argv ) {
 
     fvm_run( memory, MEMSIZE, RSTKSIZE, fvm_library, fvm_library_size );
