@@ -48,7 +48,7 @@ VARIABLE YU-RB-WPOS
 
 \ Function to add a character to YU-NAMEBUF
 \ ( char -- )
-: YU-NAMEADDCHAR
+: YU-NAME-ADDCH
     DUP -1 <> IF
         ( char )
         \ get name length
@@ -88,6 +88,7 @@ VARIABLE YU-RB-WPOS
         \ if write position equals read position, increment that too
         YU-RB-WPOS @ YU-RB-RPOS @ = IF
             YU-RB-RPOS DUP @ 1+ 63 AND SWAP !
+        THEN
     ELSE
         ( char )
         DROP
@@ -159,3 +160,76 @@ VARIABLE YU-RB-WPOS
         THEN
     THEN
 ;
+
+\ test if a character is the character of a name
+( char -- bool )
+: YU-NAME-CHR?
+    \ A .. Z
+    DUP 65 >= OVER 90 <= AND
+    ( char bool )
+    \ a .. z
+    OVER 97 >= 3 PICK 122 <= AND
+    ( char bool bool )
+    3 PICK 48 >= 4 PICK 57 <= AND
+    ( char bool bool bool )
+    4 PICK 95 =
+    ( char bool bool bool bool )
+    OR OR OR
+    ( char bool )
+    SWAP DROP
+    ( bool )
+;
+
+\ test if a character is the first character of a name
+( char -- bool )
+: YU-NAME-FCHR?
+    YU-NAME-CHR?
+;
+
+\ read a name beginning with the supplied character
+\ returns 0 0 if the character is not a name character
+( char -- addr len )
+: YU-NAME-READ
+    DUP YU-NAME-FCHR? IF
+        \ clear name length
+        0 YU-NAMEBUF C!
+        BEGIN
+            ( char )
+            \ put character
+            YU-NAME-ADDCH
+            ( )
+            \ get next character
+            YU-RDCH
+            ( char )
+            \ check if it's -1 or not a name character
+            DUP -1 = OVER YU-NAME-CHR? NOT OR
+        UNTIL
+        ( char )
+        \ if it's not -1, put it back
+        DUP -1 <> IF
+            ( char )
+            YU-PUTBACK !
+        ELSE
+            ( char )
+            DROP
+        THEN
+        ( )
+        YU-NAMEBUF COUNT
+        ( addr len )
+    ELSE
+        ( char )
+        DROP
+        0 0
+    THEN
+;
+
+
+: YU-BANNER
+    >INP @ SYSISATTY IF
+        BOLD ." Yulark initialized." REGULAR LF
+    THEN
+;
+
+YU-BANNER
+FREEMSG
+OKAY

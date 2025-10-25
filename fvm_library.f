@@ -39,6 +39,15 @@
 \ for string handling functions
 32 ARRAY STRBUF
 
+\ define ANSI control sequence argument counter
+VARIABLE CSAC
+
+\ define ANSI control sequence argument array
+8 ARRAY CSAA
+
+\ define screen attribute combinations
+64 ARRAY ATTRARY
+
 \ check character for EOF
 ( char -- bool )
 : ?EOF
@@ -270,15 +279,6 @@
 ;
 
 : LF 10 EMIT ;
-
-: BANNER
-    >INP @ SYSISATTY IF
-        ." YULARK FORTH Engine" LF
-        ." Copyright © 2025  Ekkehard Morgenstern" LF
-        ." This program comes with ABSOLUTELY NO WARRANTY; for details type 'SHOW_W'." LF
-        ." This is free software, and you are welcome to redistribute it under certain conditions; type 'SHOW_C' for details." LF
-    THEN
-;
 
 : SHOW_W
 ."   15. Disclaimer of Warranty." LF
@@ -903,12 +903,6 @@
 ." " LF
 ;
 
-: FREEMSG
-    >INP @ SYSISATTY IF
-        32 EMIT ?FREEDSP . ." bytes free in dictionary space." LF
-    THEN
-;
-
 \ output word list in ascending order (requires recursion)
 \ ( defptr -- )
 : WORDSR
@@ -953,6 +947,538 @@
 ( n -- n [n] )
 : ?DUP DUP IF DUP THEN ;
 
+\ output ANSI control sequence introducer
+: CSI
+    27 EMIT ." ["
+    \ clear argument counter
+    0 CSAC !
+;
+
+\ add control sequence argument
+( n -- )
+: CSA
+    \ store argument only if it is non-zero
+    \ and if argument count < 8
+    CSAC DUP @ 8 <
+    ( n csac bool )
+    3 PICK <>0 AND IF
+        ( n csac )
+        SWAP
+        ( csac n )
+        \ store argument in array
+        OVER @ CELLS CSAA + !
+        ( csac )
+        \ increment argument counter
+        INCR
+        ( )
+    ELSE
+        ( n csac )
+        2DROP
+    THEN
+;
+
+\ emit control sequence arguments
+: EMITCSAA
+    CSAC @ DUP IF
+        ( cnt )
+        \ count is non-zero
+        0
+        \ index is 0
+        ( cnt inx )
+        \ clear DOT buffer
+        0 DOT C!
+        BEGIN
+            ( cnt inx )
+            DUP CELLS CSAA + @
+            ( cnt inx val )
+            \ output value into DOT buffer
+            U>DOT
+            ( cnt inx )
+            \ increment index
+            1+
+            \ check if limit has been reached
+            2DUP SWAP
+            ( cnt inx inx cnt )
+            <
+        WHILE
+            ( cnt inx )
+            \ yes, there's more, output semicolon into DOT buffer
+            59 >DOT
+            \ continue
+        REPEAT
+        ( cnt inx )
+        2DROP
+        \ print DOT buffer
+        PRINTDOT
+    ELSE
+        ( cnt )
+        DROP
+    THEN
+;
+
+\ output set graphic rendition ANSI sequence
+: SGR
+    EMITCSAA
+    ." m"
+;
+
+\ convert index to foreground color code
+( n -- n )
+: FGCOL
+    15 AND
+    DUP 8 < IF
+        ( n )
+        30 +
+    ELSE
+        ( n )
+        8 -
+        90 +
+    THEN
+;
+
+\ convert index to background color code
+( n -- n )
+: BGCOL
+    15 AND
+    DUP 8 < IF
+        ( n )
+        40 +
+    ELSE
+        ( n )
+        8 -
+        100 +
+    THEN
+;
+
+\ convert index to 256 color index
+( n -- n )
+: COL256
+    255 AND
+;
+
+\ set foreground color only
+\ NOTE that whether a color is honored is device-dependent
+( n -- )
+: PEN
+    CSI
+    FGCOL
+    CSA
+    SGR
+;
+
+\ set foreground color only (256 colors)
+\ NOTE that whether a color is honored is device-dependent
+( n -- )
+: PEN256
+    CSI
+    38 CSA 5 CSA
+    COL256 CSA
+    SGR
+;
+
+\ set background color only
+\ NOTE that whether a color is honored is device-dependent
+( n -- )
+: PAPER
+    CSI
+    BGCOL
+    CSA
+    SGR
+;
+
+\ set background color only (256 colors)
+\ NOTE that whether a color is honored is device-dependent
+( n -- )
+: PAPER256
+    CSI
+    48 CSA 5 CSA
+    COL256 CSA
+    SGR
+;
+
+\ set video mode only
+( n -- )
+: MODE
+    CSI
+    10 MOD
+    CSA
+    SGR
+;
+
+\ shorthands
+: REGULAR 0 MODE ;
+: BOLD 1 MODE ;
+: FAINT 2 MODE ;
+: ITALIC 3 MODE ;
+: UNDERLINE 4 MODE ;
+: SLOWBLINK 5 MODE ;
+: RAPIDBLINK 6 MODE ;
+: REVERSE 7 MODE ;
+: CONCEALED 8 MODE ;
+: CROSSEDOUT 9 MODE ;
+
+\ clear video mode only
+( n -- )
+: MODEOFF
+    CSI
+    10 MOD 20 +
+    CSA
+    SGR
+;
+
+\ shorthands
+\ NOTE: BOLDOFF acts as DOUBLEUNDERLINE on some terminals
+: BOLDOFF 1 MODEOFF ;
+: DOUBLEUNDERLINE 1 MODEOFF ;
+: FAINTOFF 2 MODEOFF ;
+: ITALICOFF 3 MODEOFF ;
+: UNDERLINEOFF 4 MODEOFF ;
+: BLINKOFF 5 MODEOFF ;
+: REVERSEOFF 7 MODEOFF ;
+: CROSSEDOUTOFF 9 MODEOFF ;
+: CONCEALEDOFF 8 MODEOFF ;
+
+\ color shorthands
+\ color names are merely suggestions and depend on the terminal emulator
+0 CONSTANT BLACK
+1 CONSTANT RED
+2 CONSTANT GREEN
+3 CONSTANT YELLOW
+4 CONSTANT BLUE
+5 CONSTANT MAGENTA
+6 CONSTANT CYAN
+7 CONSTANT WHITE
+8 CONSTANT GRAY
+9 CONSTANT BRIGHTRED
+10 CONSTANT BRIGHTGREEN
+11 CONSTANT BRIGHTYELLOW
+12 CONSTANT BRIGHTBLUE
+13 CONSTANT BRIGHTMAGENTA
+14 CONSTANT BRIGHTCYAN
+15 CONSTANT BRIGHTWHITE
+
+\ shortcut for PAPER PEN
+\ NOTE that whether a color is honored is device-dependent
+( paper pen -- )
+: COLOR
+    CSI
+    FGCOL CSA
+    BGCOL CSA
+    SGR
+;
+
+\ shortcut for PAPER256 PEN256
+\ NOTE that whether a color is honored is device-dependent
+( paper pen -- )
+: COLOR256
+    PEN256
+    PAPER256
+;
+
+\ set an entry in the screen attribute table
+\ NOTE that whether a color is honored is device-dependent
+( index mode foreground background -- )
+: ATTRDEF
+    ( index mode foreground background )
+    ROT
+    ( index foreground background mode )
+    10 UMOD 256 * ROT
+    ( index background mode foreground )
+    15 AND 16 * ROT
+    ( index mode foreground background )
+    15 AND
+    \ combine into attribute
+    + +
+    ( index attr )
+    SWAP
+    ( attr index )
+    63 AND
+    CELLS ATTRARY + !
+;
+
+\ set an entry in the screen attribute table (256 colors)
+\ NOTE that whether a color is honored is device-dependent
+( index mode foreground background -- )
+: ATTRDEF256
+    ( index mode foreground background )
+    ROT
+    ( index foreground background mode )
+    10 UMOD 65536 * ROT
+    ( index background mode foreground )
+    255 AND 256 * ROT
+    ( index mode foreground background )
+    255 AND
+    \ combine into attribute
+    + +
+    ( index attr )
+    SWAP
+    ( attr index )
+    63 AND
+    CELLS ATTRARY + !
+;
+
+\ recall an entry from the screen attribute table
+\ NOTE that whether a color is honored is device-dependent
+( n -- )
+: ATTR
+    63 AND CELLS ATTRARY + @
+    CSI
+    ( attr )
+    DUP 256 / 10 UMOD CSA
+    ( attr )
+    DUP 16 / FGCOL CSA
+    ( attr )
+    BGCOL CSA
+    ( )
+    SGR
+;
+
+\ recall an entry from the screen attribute table (256 colors)
+\ NOTE that whether a color is honored is device-dependent
+( n -- )
+: ATTR256
+    63 AND CELLS ATTRARY + @
+    ( attr )
+    DUP 65536 / 10 UMOD MODE
+    ( attr )
+    DUP 256 / PEN256
+    ( attr )
+    PAPER256
+    ( )
+;
+
+\ home cursor
+( y x -- )
+: HOME
+    CSI
+    SWAP CSA CSA
+    EMITCSAA
+    ." H"
+;
+
+\ alias LOCATE (same as HOME)
+( y x -- )
+: LOCATE HOME ;
+
+\ junk: clear part or all of screen
+( mode -- )
+: JUNK
+    CSI
+    CSA
+    EMITCSAA
+    ." J"
+;
+
+\ shorthand
+: CLS 1 1 HOME 2 JUNK ;
+
+\ kill: clear part or all of line
+( mode -- )
+: KILL
+    CSI
+    CSA
+    EMITCSAA
+    ." K"
+;
+
+\ scroll: >0 up, <0 down
+( n -- )
+: SCROLL
+    DUP >=0 IF
+        ( n )
+        CSI CSA EMITCSAA ." S"
+    ELSE
+        ( n )
+        CSI NEG CSA EMITCSAA ." T"
+    THEN
+;
+
+\ dump init text line
+: DUMPINITL
+    0
+    ( inx )
+    \ length will be 87 bytes
+    87 STRBUF C!
+    \ 87th byte will be LF
+    10 STRBUF 87 + C!
+    \ start loop
+    BEGIN
+        ( inx )
+        \ store blank
+        32 OVER STRBUF 1+ + C!
+        ( inx )
+        \ loop until line is full
+        1+ DUP 86 >=
+    UNTIL
+    ( inx )
+    DROP
+;
+
+\ set address field in dump line
+( addr -- )
+: DUMPADDR
+    16
+    ( addr inx )
+    BEGIN
+        SWAP
+        ( inx addr )
+        \ divide current address by 16
+        16 U/MOD
+        ( inx result remainder )
+        \ convert remainder to character
+        DIG2CHR
+        ( inx result char )
+        \ store character in line buffer
+        3 PICK STRBUF + C!
+        ( inx result )
+        SWAP
+        ( addr inx )
+        1- DUP 1 <
+    UNTIL
+    ( addr inx )
+    2DROP
+;
+
+\ dump hex byte
+( addr inx -- )
+: DUMPHEXB
+    ( addr inx )
+    15 AND
+    \ compute buffer position
+    DUP 8 < IF
+        \ 19 + inx * 3
+        DUP 3 * 19 +
+        ( addr inx pos )
+    ELSE
+        \ 44 + ( inx - 8 ) * 3
+        DUP 8 - 3 * 44 +
+        ( addr inx pos )
+    THEN
+    ( addr inx pos )
+    -3 ROLL
+    ( pos addr inx )
+    \ get data byte
+    + C@
+    ( pos byte )
+    \ divide by 16
+    16 U/MOD
+    ( pos result remainder )
+    DIG2CHR
+    ( pos result char )
+    \ store at pos + 1
+    3 PICK 1+ STRBUF + C!
+    ( pos result )
+    DIG2CHR
+    \ store at pos
+    SWAP STRBUF + C!
+    ( )
+;
+
+\ dump ascii byte
+( addr inx -- )
+: DUMPASCB
+    ( addr inx )
+    15 AND
+    \ compute buffer position
+    DUP 8 < IF
+        \ 69 + inx
+        DUP 69 +
+        ( addr inx pos )
+    ELSE
+        \ 78 + ( inx - 8 )
+        DUP 8 - 78 +
+        ( addr inx pos )
+    THEN
+    ( addr inx pos )
+    -3 ROLL
+    ( pos addr inx )
+    \ get data byte
+    + C@
+    ( pos byte )
+    \ check if in printable range
+    DUP 32 U>=
+    ( pos byte bool )
+    OVER 127 U<
+    ( pos byte bool bool )
+    AND UNLESS
+        ( pos byte )
+        \ if not, generate dot (46)
+        DROP 46
+    THEN
+    ( pos byte )
+    \ store at position
+    SWAP STRBUF + C!
+    ( )
+;
+
+\ dump byte as hex and ascii
+( addr inx -- )
+: DUMPBYTE
+    2DUP DUMPHEXB DUMPASCB
+;
+
+\ dump bytes as hex and ascii
+\ len will be limited to 16
+( addr len -- )
+: DUMPBYTES
+    2 PICK 0
+    ( addr len addr inx )
+    BEGIN
+        2DUP DUMPBYTE
+        ( addr len addr inx )
+        1+ DUP 4 PICK >=
+        ( addr len addr inx bool )
+        OVER 16 >=
+        ( addr len addr inx bool bool )
+        OR
+    UNTIL
+    ( addr len addr inx )
+    2DROP 2DROP
+;
+
+\ display hex dump of memory area
+\ format:
+\ 0000000000111111111122222222223333333333444444444455555555556666
+\ 0123456789012345678901234567890123456789012345678901234567890123
+\  6666667777777777888888
+\  4567890123456789012345
+\  AAAAAAAAAAAAAAAA  DD DD DD DD DD DD DD DD  DD DD DD DD DD DD DD
+\   DD  ........ ........
+( addr len -- )
+: DUMP
+    BEGIN
+        \ prepare line buffer
+        ( addr len )
+        DUMPINITL
+        ( addr len )
+        OVER DUMPADDR
+        ( addr len )
+        2DUP DUMPBYTES
+        \ print line
+        STRBUF COUNT TYPE
+        \ advance to next line
+        ( addr len )
+        16 - SWAP 16 + SWAP
+        ( addr len )
+        DUP <=0
+    UNTIL
+    2DROP
+;
+
+: BANNER
+    >INP @ SYSISATTY IF
+        BOLD ." YULARK FORTH Engine" REGULAR LF
+        ." Copyright © 2025  Ekkehard Morgenstern" LF
+        ." This program comes with ABSOLUTELY NO WARRANTY; for details type 'SHOW_W'." LF
+        ." This is free software, and you are welcome to redistribute it under certain conditions; type 'SHOW_C' for details." LF
+    THEN
+;
+
+: FREEMSG
+    >INP @ SYSISATTY IF
+        BOLD 32 EMIT ?FREEDSP . ." bytes free in dictionary space." REGULAR LF
+    THEN
+;
 
 BANNER
 FREEMSG
