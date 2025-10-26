@@ -278,3 +278,54 @@ STATUS [HTTP] <expr>
 END [STATUS]
 
 Formale Definition:
+
+Expression-EBNF:
+
+identifier := /[A-Za-z0-9_]+/ .
+dec-n := /[0-9]+(\.[0-9]+)([eE][+-]?[0-9]+)?/ .
+oct-n := /@[0-7]+(\.[0-7]+)([eE][+-]?[0-7]+)?/ .
+bin-n := /\%[0-1]+(\.[0-1]+)([eE][+-]?[0-1]+)?/ .
+hex-n := /\$[0-9A-Fa-f]+(\.[0-9A-Fa-f]+)('[+-]?[0-9]+)?/ .
+
+number := hex-n | bin-n | oct-n | dec-n .
+
+string := /"[^"]*"/ .
+
+str-or-num := string | number .
+
+fn-ap-arg := [ identifier '=' ] expr .
+fn-ap-arg-list := fn-ap-arg { ',' fn-ap-arg } .
+fn-ap := '(' [ fn-ap-arg-list ] ')' .
+
+array-ap-arg := expr .
+array-ap-arg-list := array-ap-arg { ',' array-ap-arg } .
+array-ap := '[' array-ap-arg-list ']' .
+
+fn-or-array-ap := fn-ap | array-ap .
+
+sub-expr := '(' expr ')' .
+
+base-expr := identifier [ fn-or-array-ap ] | str-or-num | sub-expr .
+
+unary-op := '-' | 'NOT' | 'ADDROF' .
+unary-expr := [ unary-op ] base-expr .
+
+mult-op := '*' | '**' | '/' | 'MOD' .
+mult-expr := unary-expr { mult-op unary-expr } .
+
+add-op := '+' | '-' .
+add-expr := mult-op { add-op mult-op } .
+
+shf-op := 'LSH' | 'RSH' .
+shf-expr := add-expr [ shf-op add-expr ] .
+
+cmp-op := '=' | '<>' | '<=' | '>=' | '<' | '>' .
+cmp-expr := shf-expr [ cmp-op shf-expr ] .
+
+and-op := 'AND' | 'NAND' .
+and-expr := cmp-expr { and-op cmp-expr } .
+
+or-op := 'OR' | 'NOR' | 'XOR' | 'XNOR' .
+or-expr := and-expr { or-op and-expr } .
+
+expr := or-expr .
