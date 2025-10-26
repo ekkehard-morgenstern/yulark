@@ -289,23 +289,44 @@ hex-n := /\$[0-9A-Fa-f]+(\.[0-9A-Fa-f]+)('[+-]?[0-9]+)?/ .
 
 number := hex-n | bin-n | oct-n | dec-n .
 
-string := /"[^"]*"/ .
+
+ctrl-chr-esc := /[abetrn]/ .
+hex-chr-esc := /x[0-9a-fA-F]{1,2}/ .
+oct-chr-esc := /[0-7]{1,3}/ .
+bin-chr-esc := /b[0-1]{1,8}/ .
+sng-chr-esc := '\\' | '"' | "'" .
+chr-esc := ctrl-chr-esc | hex-chr-esc | oct-chr-esc | bin-chr-esc |
+           sng-chr-esc  .
+
+str-esc := "\\" chr-esc .
+str-chr1 := /[^"\\]/ | str-esc .
+str-chr2 := /[^'\\]/ | str-esc .
+str-seq1 := '"' { str-chr1 } '"' .
+str-seq2 := "'" { str-chr2 } "'" .
+string := str-seq1 | str-seq2 .
 
 str-or-num := string | number .
 
-fn-ap-arg := [ identifier '=' ] expr .
+range-expr := expr [ '..' expr ] .
+
+fn-ap-arg := [ identifier '=' ] range-expr .
 fn-ap-arg-list := fn-ap-arg { ',' fn-ap-arg } .
 fn-ap := '(' [ fn-ap-arg-list ] ')' .
 
-array-ap-arg := expr .
+array-ap-arg := range-expr .
 array-ap-arg-list := array-ap-arg { ',' array-ap-arg } .
-array-ap := '[' array-ap-arg-list ']' .
+array-ap := '[' [ array-ap-arg-list ] ']' .
 
 fn-or-array-ap := fn-ap | array-ap .
 
 sub-expr := '(' expr ')' .
 
-base-expr := identifier [ fn-or-array-ap ] | str-or-num | sub-expr .
+ref := identifier .
+root-ref := '::' .
+ref-list := [ root-ref ] identifier '.' { identifier '.' } .
+
+base-expr := [ ref-list ] identifier [ fn-or-array-ap ] | str-or-num
+           | sub-expr .
 
 unary-op := '-' | 'NOT' | 'ADDROF' .
 unary-expr := [ unary-op ] base-expr .
