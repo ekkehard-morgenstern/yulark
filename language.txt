@@ -285,9 +285,10 @@ identifier := /[A-Za-z0-9_]+/ .
 dec-n := /[0-9]+(\.[0-9]+)([eE][+-]?[0-9]+)?/ .
 oct-n := /@[0-7]+(\.[0-7]+)([eE][+-]?[0-7]+)?/ .
 bin-n := /\%[0-1]+(\.[0-1]+)([eE][+-]?[0-1]+)?/ .
-hex-n := /\$[0-9A-Fa-f]+(\.[0-9A-Fa-f]+)('[+-]?[0-9]+)?/ .
+hex-n := /\$[0-9A-Fa-f]+(\.[0-9A-Fa-f]+)('[+-]?[0-9A-Fa-f]+)?/ .
+base-n := /#[0-9]+#[0-9A-Za-z]+(\.[0-9A-Za-z]+)([Ee'][+-]?[0-9A-Za-z]+)?/ .
 
-number := hex-n | bin-n | oct-n | dec-n .
+number := hex-n | bin-n | oct-n | dec-n | base-n .
 
 
 ctrl-chr-esc := /[abetrn]/ .
