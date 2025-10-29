@@ -68,6 +68,28 @@ VARIABLE CSAC
     DROP
 ;
 
+\ store a string character
+( char -- )
+: SC!
+    \ fetch length of buffer
+    STRBUF C@
+    ( char len )
+    \ check length, maximum 255 chars allowed
+    DUP 255 < IF
+        ( char len )
+        \ increment length and store
+        1+ STRBUF
+        ( char len addr )
+        2DUP C!
+        ( char len strbuf )
+        \ sum base address and length and store there
+        + C!
+    ELSE
+        ( char len )
+        2DROP
+    THEN
+;
+
 \ read a string literal from the input, skipping
 \ one leading space character
 : STRLIT
@@ -85,21 +107,10 @@ VARIABLE CSAC
     WHILE
         \ neither EOF nor double quote
         ( char )
-        \ fetch length of buffer
-        STRBUF C@
-        ( char len )
-        \ check length, maximum 255 chars allowed
-        DUP 255 < IF
-            ( char len )
-            \ increment length and store
-            1+ STRBUF
-            ( char len addr )
-            2DUP C!
-            ( char len strbuf )
-            \ sum base address and length and store there
-            + C!
-        THEN
+        \ store character
+        SC!
     REPEAT
+    \ EOF or double quote
     ( char )
     DROP
 ;
@@ -1478,6 +1489,77 @@ VARIABLE CSAC
     >INP @ SYSISATTY IF
         BOLD 32 EMIT ?FREEDSP . ." bytes free in dictionary space." REGULAR LF
     THEN
+;
+
+\ store a regular expression character
+( char -- )
+: REC!
+    SC!
+;
+
+( -- true )
+: TRUE -1 ;
+
+( -- false )
+: FALSE 0 ;
+
+\ handle a regular expression character
+\ can be regular character or backslash escaped character
+\ returns bool TRUE for continue and FALSE for stop
+( char -- bool )
+: RECHR
+    DUP 92 = IF
+        DROP
+        INPGETCH
+        ( char )
+        \ if it's not EOF, store the 2-character sequence
+        DUP -1 <> IF
+            ( char )
+            \ store backslash
+            92 REC!
+            ( char )
+            \ store character
+            REC!
+            \ leave TRUE
+            TRUE
+        ELSE
+            \ EOF, leave FALSE
+            FALSE
+        THEN
+    ELSE
+        \ not escape character: store if it's not EOF or slash
+        ( char )
+        DUP -1 <> OVER 47 <> AND IF
+            ( char )
+            \ store character
+            REC!
+            \ leave TRUE
+            TRUE
+        ELSE
+            \ EOF or slash, leave FALSE
+            FALSE
+        THEN
+    THEN
+;
+
+\ read a regular expression literal from the input, skipping
+\ one leading space character
+: RELIT
+    \ clear the length counter in the string buffer
+    0 STRBUF C!
+    \ skip one space
+    SKIP1SPC
+    \ start loop
+    BEGIN
+        \ get a character
+        INPGETCH
+        ( char )
+        \ handle it
+        RECHR
+        ( bool )
+        \ will have TRUE for continue, FALSE for stop
+        NOT
+    UNTIL
 ;
 
 BANNER
