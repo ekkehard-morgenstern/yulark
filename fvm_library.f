@@ -1523,6 +1523,8 @@ VARIABLE CSAC
             \ leave TRUE
             TRUE
         ELSE
+            ( char )
+            DROP
             \ EOF, leave FALSE
             FALSE
         THEN
@@ -1536,6 +1538,8 @@ VARIABLE CSAC
             \ leave TRUE
             TRUE
         ELSE
+            ( char )
+            DROP
             \ EOF or slash, leave FALSE
             FALSE
         THEN
@@ -1560,6 +1564,33 @@ VARIABLE CSAC
         \ will have TRUE for continue, FALSE for stop
         NOT
     UNTIL
+;
+
+\ quote a regular expression
+\ when compiling, create a regular expression object and put it at HERE
+\ and generate code to output it
+\ compiles to:
+\   LIT[regex]
+\
+\ ( -- addr )
+: RE/ IMMEDIATE
+    ?IMMEDIATE UNLESS
+        \ read regular expression literal into STRBUF
+        RELIT
+        \ compile the regular expression
+        STRBUF REINIT
+        ( regex )
+        \ compile regex into the word
+        LITERAL
+    ELSE
+        \ read literal into STRBUF
+        RELIT
+        \ compile regular expression
+        STRBUF REINIT
+        ( regex )
+        \ in immediate mode, the caller should use REFREE to free the
+        \ regular expression object after use
+    THEN
 ;
 
 BANNER

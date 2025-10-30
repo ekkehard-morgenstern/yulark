@@ -111,7 +111,7 @@ static void* create_reinfo( const char* cpattern ) {
 ERR3:   free( rei->pattern );
 ERR2:   free( rei );
 ERR1:   fflush( stderr );
-        return 0;
+        exit( EXIT_FAILURE );
 }
 
 static void delete_reinfo( void* rei0 ) {
