@@ -16,5 +16,6 @@ gcc $CCOPT -o compressf compressf.c
 gcc $CCOPT -o compf2src compf2src.c
 ./compf2src <fvm_library_comp.f >fvm_library_c.c
 gcc $CCOPT -c -o fvm_library_c.o fvm_library_c.c
-gcc $CCOPT $LNKOPT -o test_fvm test_fvm.c fvm_asm.o fvm_library_c.o -lm
+gcc $CCOPT -c -o fvm_aux.o fvm_aux.c
+gcc $CCOPT $LNKOPT -o test_fvm test_fvm.c fvm_asm.o fvm_aux.o fvm_library_c.o -lm
 nm -a test_fvm >test_fvm.lst

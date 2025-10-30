@@ -32,3 +32,4 @@ fvm_yulark_c.o
 fvm_yulark_comp.f
 test_yulark
 test_yulark.lst
+fvm_aux.o

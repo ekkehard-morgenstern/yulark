@@ -31,6 +31,8 @@
                         extern      _dbgfdot
                         extern      _xalloc
                         extern      _xfree
+                        extern      _reinit
+                        extern      _refree
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -4929,13 +4931,30 @@ _dig2chr                movzx   rax,al
                         dq      EXIT
 
                         ; free a block of system memory
-                        ; ( addr )
+                        ; ( addr -- )
                         DEFCOL  "XFREE",XFREE,0
                         dq      LIT,1,LIT,_xfree
                         dq      CALLC
                         ; drop result
                         dq      DROP
                         dq      EXIT
+
+                        ; initialize regular expression
+                        ; ( caddr -- regex )
+                        DEFCOL  "REINIT",REINIT,0
+                        ; ( caddr )
+                        dq      LIT,1,LIT,_reinit
+                        dq      CALLC
+                        ; ( regex )
+                        dq      EXIT
+
+                        ; free regular expression
+                        ; ( regex -- )
+                        DEFCOL  "REFREE",REFREE,0
+                        ; ( regex )
+                        dq      LIT,1,LIT,_refree
+                        dq      CALLC
+                        dq      DROP,EXIT
 
                         section .rodata
 

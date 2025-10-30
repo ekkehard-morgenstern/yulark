@@ -41,43 +41,6 @@ extern void fvm_run( void* mem, size_t siz, size_t rsz,
 
 static char memory[MEMSIZE];
 
-// debugging function for floating-point
-void _dbgfdot( uint64_t data ) {
-    char tmp[256];
-    union {
-        uint64_t uival;
-        double   dval;
-    } u;
-    u.uival = data;
-    tmp[0] = '\0';
-    snprintf( tmp, 256U, "%g ", u.dval );
-    write( 1, tmp, strlen(tmp) );
-}
-
-// system memory management interface
-uint64_t _xalloc( uint64_t size ) {
-    void* block = malloc( (size_t) size );
-    if ( block == 0 ) {
-        fprintf( stderr, "? out of memory\n" );
-        exit( EXIT_FAILURE );
-    }
-    union {
-        uint64_t uval;
-        void*    pval;
-    } u;
-    u.uval = 0;
-    u.pval = block;
-    return u.uval;
-}
-void _xfree( uint64_t ptr ) {
-    union {
-        uint64_t uval;
-        void* pval;
-    } u;
-    u.uval = ptr;
-    free( u.pval );
-}
-
 int main( int argc, char** argv ) {
 
     fvm_run( memory, MEMSIZE, RSTKSIZE, fvm_library, fvm_library_size );

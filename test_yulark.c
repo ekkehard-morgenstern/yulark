@@ -25,10 +25,12 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 
 #include <unistd.h>
+#include <regex.h>
 
 extern const char fvm_library[];
 extern size_t fvm_library_size;
@@ -43,33 +45,6 @@ extern void fvm_run( void* mem, size_t siz, size_t rsz,
 #define RSTKSIZE    65536U
 
 static char memory[MEMSIZE];
-
-// debugging function for floating-point (see test_fvm.c)
-void _dbgfdot( uint64_t data ) {}
-
-// system memory management interface
-uint64_t _xalloc( uint64_t size ) {
-    void* block = malloc( (size_t) size );
-    if ( block == 0 ) {
-        fprintf( stderr, "? out of memory\n" );
-        exit( EXIT_FAILURE );
-    }
-    union {
-        uint64_t uval;
-        void*    pval;
-    } u;
-    u.uval = 0;
-    u.pval = block;
-    return u.uval;
-}
-void _xfree( uint64_t ptr ) {
-    union {
-        uint64_t uval;
-        void* pval;
-    } u;
-    u.uval = ptr;
-    free( u.pval );
-}
 
 int main( int argc, char** argv ) {
 
