@@ -33,6 +33,7 @@
                         extern      _xfree
                         extern      _reinit
                         extern      _refree
+                        extern      _reexec
 
 ; Registers:
 ;       PSP     - parameter stack pointer   (r15)
@@ -4955,6 +4956,17 @@ _dig2chr                movzx   rax,al
                         dq      LIT,1,LIT,_refree
                         dq      CALLC
                         dq      DROP,EXIT
+
+                        ; match regular expression
+                        ; the result array must be freed using XFREE after use
+                        ; ( regex addr len numsubexpr flags -- matches )
+                        ; matches will be 0 if there was no match
+                        DEFCOL  "REEXEC",REEXEC,0
+                        ; ( regex addr len numsubexpr flags )
+                        dq      LIT,5,LIT,_reexec
+                        dq      CALLC
+                        ; ( matches )
+                        dq      EXIT
 
                         section .rodata
 

@@ -123,6 +123,48 @@ static void delete_reinfo( void* rei0 ) {
     free( rei );
 }
 
+static void* match_reinfo( void* rei0, const char* str0, size_t len0,
+    size_t numsubexpr0, int flags0 ) {
+    reinfo_t* rei = (reinfo_t*) rei0;
+    size_t nummatches = 1U;
+    if ( numsubexpr0 ) nummatches += numsubexpr0;
+    regmatch_t* matches = (regmatch_t*) calloc( nummatches,
+        sizeof(regmatch_t) );
+    if ( matches == 0 ) {
+        fprintf( stderr, "? out of memory, nmemb = %zu, size = %zu",
+            nummatches, sizeof(regmatch_t) );
+        exit( EXIT_FAILURE );
+    }
+    matches[0].rm_so = 0;
+    matches[0].rm_eo = (regoff_t) len0;
+    flags0 &= REG_NOTBOL | REG_NOTEOL;
+    int rv = regexec( &rei->regex, str0, nummatches, matches,
+        REG_STARTEND | flags0 );
+    if ( rv == REG_NOMATCH ) {
+        free( matches );
+        return 0;
+    }
+    if ( rv != 0 ) {
+        free( matches );
+        fprintf( stderr, "? Unexpected response from regexec(): %d\n", rv );
+        exit( EXIT_FAILURE );
+    }
+    uint64_t* matchesOut = (uint64_t*) calloc( nummatches * 2U,
+        sizeof(uint64_t) );
+    if ( matchesOut == 0 ) {
+        free( matches );
+        fprintf( stderr, "? out of memory, nmemb = %zu, size = %zu",
+            nummatches * 2U, sizeof(uint64_t) );
+        exit( EXIT_FAILURE );
+    }
+    size_t i;
+    for ( i=0; i < nummatches; ++i ) {
+        matchesOut[ i * 2U + 0U ] = matches[i].rm_so;
+        matchesOut[ i * 2U + 1U ] = matches[i].rm_eo;
+    }
+    return matchesOut;
+}
+
 // regular expression interface
 uint64_t _reinit( uint64_t flags0, uint64_t cpattern0 ) {
     union {
@@ -145,4 +187,24 @@ void _refree( uint64_t rei0 ) {
     } u;
     u.ui = rei0;
     delete_reinfo( u.p );
+}
+
+uint64_t _reexec( uint64_t rei0, uint64_t str0, uint64_t len0,
+    uint64_t numsubexpr0, uint64_t flags0 ) {
+    union {
+        void* p;
+        const char* s;
+        uint64_t ui;
+        int i;
+        size_t z;
+    } u1, u2, u3, u4, u5, ur;
+    u1.ui = rei0;
+    u2.ui = str0;
+    u3.ui = len0;
+    u4.ui = numsubexpr0;
+    u5.ui = flags0;
+    void* res = match_reinfo( u1.p, u2.s, u3.z, u4.z, u5.i );
+    ur.ui = 0;
+    ur.p  = res;
+    return ur.ui;
 }
