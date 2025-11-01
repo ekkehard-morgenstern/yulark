@@ -80,7 +80,7 @@ typedef struct _reinfo_t {
     regex_t regex;
 } reinfo_t;
 
-static void* create_reinfo( const char* cpattern ) {
+static void* create_reinfo( const char* cpattern, int flags ) {
     unsigned char len = cpattern[0];
     const char*   str = &cpattern[1];
     reinfo_t* rei = (reinfo_t*) malloc( sizeof(reinfo_t) );
@@ -98,7 +98,8 @@ static void* create_reinfo( const char* cpattern ) {
     if ( len ) memcpy( rei->pattern, str, len );
     rei->pattern[len] = '\0';
     memset( &rei->regex, 0, sizeof(regex_t) );
-    int rv = regcomp( &rei->regex, rei->pattern, REG_EXTENDED );
+    flags &= REG_ICASE | REG_NEWLINE; // ensure no other bits are set
+    int rv = regcomp( &rei->regex, rei->pattern, REG_EXTENDED | flags );
     if ( rv != 0 ) {
         char tmp[512]; tmp[0] = '\0';
         regerror( rv, &rei->regex, tmp, 512U );
@@ -123,7 +124,7 @@ static void delete_reinfo( void* rei0 ) {
 }
 
 // regular expression interface
-uint64_t _reinit( uint64_t cpattern0 ) {
+uint64_t _reinit( uint64_t flags0, uint64_t cpattern0 ) {
     union {
         void* p;
         uint64_t ui;
@@ -131,7 +132,7 @@ uint64_t _reinit( uint64_t cpattern0 ) {
     } u;
     u.ui = cpattern0;
     const char* cpattern = u.s;
-    void* rei0 = create_reinfo( cpattern );
+    void* rei0 = create_reinfo( cpattern, (int) flags0 );
     u.ui = 0;
     u.p = rei0;
     return u.ui;

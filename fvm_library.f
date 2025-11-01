@@ -1548,6 +1548,7 @@ VARIABLE CSAC
 
 \ read a regular expression literal from the input, skipping
 \ one leading space character
+( -- flags )
 : RELIT
     \ clear the length counter in the string buffer
     0 STRBUF C!
@@ -1564,6 +1565,37 @@ VARIABLE CSAC
         \ will have TRUE for continue, FALSE for stop
         NOT
     UNTIL
+    \ clear flags
+    0
+    BEGIN
+        ( flags )
+        \ get character
+        INPGETCH
+        ( flags char )
+        DUP -1 <> OVER ?SPC NOT AND
+    WHILE
+        ( flags char )
+        \ test for I or i
+        DUP 73 = OVER 105 = OR IF
+            ( flags char )
+            \ set REG_ICASE
+            SWAP 2 OR SWAP
+        THEN
+        DUP 77 = OVER 109 = OR IF
+            ( flags char )
+            \ set REG_NEWLINE
+            SWAP 4 OR SWAP
+        THEN
+        ( flags char )
+        DROP
+        ( flags )
+    REPEAT
+    ( flags char )
+    -1 <> IF
+        \ stopped by space, move back
+        >IN DECR
+    THEN
+    ( flags )
 ;
 
 \ quote a regular expression
@@ -1577,6 +1609,7 @@ VARIABLE CSAC
     ?IMMEDIATE UNLESS
         \ read regular expression literal into STRBUF
         RELIT
+        ( flags )
         \ compile the regular expression
         STRBUF REINIT
         ( regex )
@@ -1585,6 +1618,7 @@ VARIABLE CSAC
     ELSE
         \ read literal into STRBUF
         RELIT
+        ( flags )
         \ compile regular expression
         STRBUF REINIT
         ( regex )

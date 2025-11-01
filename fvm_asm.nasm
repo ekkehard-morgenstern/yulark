@@ -4942,8 +4942,8 @@ _dig2chr                movzx   rax,al
                         ; initialize regular expression
                         ; ( caddr -- regex )
                         DEFCOL  "REINIT",REINIT,0
-                        ; ( caddr )
-                        dq      LIT,1,LIT,_reinit
+                        ; ( flags caddr )
+                        dq      LIT,2,LIT,_reinit
                         dq      CALLC
                         ; ( regex )
                         dq      EXIT
