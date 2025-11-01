@@ -24,6 +24,8 @@
 \
 
 : retest1 RE/ [a-z]+/I ;
+
+( match -- match )
 : prtmat
     DUP IF
         ( match )
@@ -40,14 +42,15 @@
         UNTIL
         DROP
         ( match )
-        XFREE
     ELSE
-        DROP
+        \ no match, match = 0
+        ( match )
         ." no match"
     THEN
+    ( match )
     10 EMIT
 ;
 
-retest1 S" foo bar" 3 0 REEXEC prtmat
-retest1 S" fOo bAr" 3 0 REEXEC prtmat
-retest1 S" fOobbAr" 3 0 REEXEC prtmat
+retest1 S" foo bar" 3 0 REEXEC prtmat XFREE
+retest1 S" fOo bAr" 3 0 REEXEC prtmat XFREE
+retest1 S" fOobbAr" 3 0 REEXEC prtmat XFREE

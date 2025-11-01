@@ -70,6 +70,7 @@ void _xfree( uint64_t ptr ) {
         void* pval;
     } u;
     u.uval = ptr;
+    if ( u.pval == 0 ) return;
     free( u.pval );
 }
 
