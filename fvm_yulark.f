@@ -326,7 +326,7 @@ VARIABLE YU-IS-A-TTY
     \ first, see if buffer is empty
     ?YU-TROUGH-EMPTY UNLESS
         \ nope, attempt to match whitespace
-        YU-RE-WHTSPC YU-TROUGH 1 0 REEXEC
+        YU-RE-WHTSPC YU-TROUGH DUP ZSTRLEN 1 0 REEXEC
         ( matches )
         DUP 0 <> IF
             DUP 0 CELLS + @
@@ -339,7 +339,7 @@ VARIABLE YU-IS-A-TTY
             ( so eo )
             SWAP
             ( eo so )
-            DROP 1+
+            DROP
             ( length )
             \ bite off that part and discard it
             YU-CHUCK
