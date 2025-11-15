@@ -62,6 +62,9 @@ VARIABLE YU-IS-A-TTY
 \ Create regular expression for whitespace
 : YU-RE-WHTSPC RE/ ^[ \t\r\n]*/ ;   \ editors might think the \ is a comment
 
+\ Create regular expression for names
+: YU-RE-NAME RE/ ^[A-Z_][A-Z0-9_]*/I ;
+
 \ Utility functions for ring buffer:
 \ Place a character into the ring buffer
 ( char -- )
@@ -355,106 +358,38 @@ VARIABLE YU-IS-A-TTY
 \ or 0 if token wasn't eaten
 ( regex -- caddr )
 : YU-TROUGH-EAT?
-    \ first, see if buffer is empty
-    ?YU-TROUGH-EMPTY UNLESS
-        \ ... TBD ...
-        0
-    ELSE
-        0
-    THEN
-;
-
-
-\ test if a character is the character of a name
-( char -- bool )
-: YU-NAME-CHR?
-    \ A .. Z
-    DUP 65 >= OVER 90 <= AND
-    ( char bool )
-    \ a .. z
-    OVER 97 >= 3 PICK 122 <= AND
-    ( char bool bool )
-    3 PICK 48 >= 4 PICK 57 <= AND
-    ( char bool bool bool )
-    4 PICK 95 =
-    ( char bool bool bool bool )
-    OR OR OR
-    ( char bool )
-    SWAP DROP
-    ( bool )
-;
-
-\ test if a character is the first character of a name
-( char -- bool )
-: YU-NAME-FCHR?
-    YU-NAME-CHR?
-;
-
-\ Function to add a character to YU-NAMEBUF
-\ ( char -- )
-: YU-NAME-ADDCH
-    DUP -1 <> IF
-        ( char )
-        \ get name length
-        YU-NAMEBUF C@
-        DUP 255 < IF
-            1+
-            ( char namelen )
-            YU-NAMEBUF
-            ( char namelen namebuf )
-            \ write length field
-            2DUP C!
-            ( char namelen namebuf )
-            \ write character
-            + C!
-            ( )
-        ELSE
-            ( char namelen )
-            2DROP
-        THEN
-    ELSE
-        ( char )
+    \ first, eat all leading whitespace in the trough
+    YU-EAT-WHTSPC
+    ( regex )
+    \ attempt to match regex
+    YU-TROUGH DUP ZSTRLEN 1 0 REEXEC
+    ( matches )
+    DUP 0 <> IF
+        DUP 0 CELLS + @
+        ( matches so )
+        OVER 1 CELLS + @
+        ( matches so eo )
+        ROT
+        ( so eo matches )
+        XFREE
+        ( so eo )
+        SWAP
+        ( eo so )
         DROP
+        ( length )
+        \ bite off that part and return it
+        YU-CHOMP
+        ( zaddr )
     THEN
+    \ if there was no match, there'll be 0 on the stack just like we want
+    \ in that case.
 ;
 
-\ read a name beginning with the supplied character
-\ returns 0 0 if the character is not a name character
-( char -- addr len )
-: YU-NAME-READ
-    DUP YU-NAME-FCHR? IF
-        \ clear name length
-        0 YU-NAMEBUF C!
-        BEGIN
-            ( char )
-            \ put character
-            YU-NAME-ADDCH
-            ( )
-            \ get next character
-            YU-RDCH
-            ( char )
-            \ check if it's -1 or not a name character
-            DUP -1 = OVER YU-NAME-CHR? NOT OR
-        UNTIL
-        ( char )
-        \ if it's not -1, put it back
-        DUP -1 <> IF
-            ( char )
-            YU-PUTBACK !
-        ELSE
-            ( char )
-            DROP
-        THEN
-        ( )
-        YU-NAMEBUF COUNT
-        ( addr len )
-    ELSE
-        ( char )
-        DROP
-        0 0
-    THEN
-;
-
+\ read a name and return new NUL-terminated string containing it
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( char -- zaddr )
+: YU-EAT-NAME YU-RE-NAME YU-TROUGH-EAT? ;
 
 : YU-BANNER
     >INP @ SYSISATTY IF
