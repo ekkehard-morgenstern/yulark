@@ -474,6 +474,30 @@ VARIABLE YU-IS-A-TTY
     THEN
 ;
 
+\ eat a double-quoted string sequence
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-STRSEQ1 YU-RE-STRSEQ1 YU-TROUGH-EAT? ;
+
+\ eat a single-quoted string sequence
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-STRSEQ2 YU-RE-STRSEQ2 YU-TROUGH-EAT? ;
+
+\ eat any kind of string sequence
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+\ string := str-seq1 | str-seq2 .
+( -- zaddr )
+: YU-EAT-STR
+    YU-EAT-STRSEQ1 DUP UNLESS
+        DROP
+        YU-EAT-STRSEQ2
+    THEN
+;
+
 : YU-BANNER
     YU-IS-A-TTY @ IF
         BOLD ." Yulark initialized." REGULAR LF
