@@ -63,7 +63,28 @@ VARIABLE YU-IS-A-TTY
 : YU-RE-WHTSPC RE/ ^[ \t\r\n]*/ ;   \ editors might think the \ is a comment
 
 \ Create regular expression for names
-: YU-RE-NAME RE/ ^[A-Z_][A-Z0-9_]*/I ;
+\ identifier := /[A-Z_][A-Z0-9_]*/i .
+: YU-RE-IDENT RE/ ^[A-Z_][A-Z0-9_]*/I ;
+
+\ Create regular expression for decimal numbers
+\ dec-n := /[0-9]+(\.[0-9]+)?(E[+-]?[0-9]+)?/i .
+: YU-RE-DEC RE/ [0-9]+(\.[0-9]+)?(E[+-]?[0-9]+)?/I ;
+
+\ Create regular expression for octal numbers
+\ oct-n := /@[0-7]+(\.[0-7]+)?(E[+-]?[0-7]+)?/i .
+: YU-RE-OCT RE/ @[0-7]+(\.[0-7]+)?(E[+-]?[0-7]+)?/I ;
+
+\ Create regular expression for binary numbers
+\ bin-n := /\%[0-1]+(\.[0-1]+)?(E[+-]?[0-1]+)?/i .
+: YU-RE-BIN RE/ \%[0-1]+(\.[0-1]+)?(E[+-]?[0-1]+)?/I ;
+
+\ Create regular expression for hexadecimal numbers
+\ hex-n := /\$[0-9A-F]+(\.[0-9A-F]+)?('[+-]?[0-9A-F]+)?/i .
+: YU-RE-HEX RE/ \$[0-9A-F]+(\.[0-9A-F]+)?('[+-]?[0-9A-F]+)?/I ;
+
+\ Create regular expression for numbers with specifed base
+\ base-n := /#[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/i .
+: YU-RE-BASE RE/ #[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/I ;
 
 \ Utility functions for ring buffer:
 \ Place a character into the ring buffer
@@ -244,7 +265,7 @@ VARIABLE YU-IS-A-TTY
 ( length -- zaddr )
 : YU-CHOMP
     \ first, get the size of the trough content
-    YU-TROUGH ZSTRLEN
+    YU-TR-FILL @
     ( usrlen curlen )
     \ if the requested length is greater, use the current length
     2DUP U> IF
@@ -263,7 +284,7 @@ VARIABLE YU-IS-A-TTY
     SWAP
     ( zaddr length )
     \ shift the remainder of YU-TROUGH down to the beginning
-    YU-TROUGH ZSTRLEN
+    YU-TR-FILL @
     ( zaddr length total )
     \ add one to total for the terminating NULL
     1+
@@ -281,7 +302,8 @@ VARIABLE YU-IS-A-TTY
     ( zaddr length source target remain )
     CMOVE
     ( zaddr length )
-    DROP
+    \ subtract length from fill counter
+    YU-TR-FILL @ SWAP - YU-TR-FILL !
     ( zaddr )
 ;
 
@@ -289,7 +311,7 @@ VARIABLE YU-IS-A-TTY
 ( length -- )
 : YU-CHUCK
     \ first, get the size of the trough content
-    YU-TROUGH ZSTRLEN
+    YU-TR-FILL @
     ( usrlen curlen )
     \ if the requested length is greater, use the current length
     2DUP U> IF
@@ -303,7 +325,7 @@ VARIABLE YU-IS-A-TTY
     THEN
     ( length )
     \ shift the remainder of YU-TROUGH down to the beginning
-    YU-TROUGH ZSTRLEN
+    YU-TR-FILL @
     ( length total )
     \ add one to total for the terminating NULL
     1+
@@ -321,7 +343,8 @@ VARIABLE YU-IS-A-TTY
     ( length source target remain )
     CMOVE
     ( length )
-    DROP
+    \ subtract length from fill counter
+    YU-TR-FILL @ SWAP - YU-TR-FILL !
 ;
 
 \ skip whitespace
@@ -329,7 +352,7 @@ VARIABLE YU-IS-A-TTY
     \ first, see if buffer is empty
     ?YU-TROUGH-EMPTY UNLESS
         \ nope, attempt to match whitespace
-        YU-RE-WHTSPC YU-TROUGH DUP ZSTRLEN 1 0 REEXEC
+        YU-RE-WHTSPC YU-TROUGH YU-TR-FILL @ 1 0 REEXEC
         ( matches )
         DUP 0 <> IF
             DUP 0 CELLS + @
@@ -362,7 +385,7 @@ VARIABLE YU-IS-A-TTY
     YU-EAT-WHTSPC
     ( regex )
     \ attempt to match regex
-    YU-TROUGH DUP ZSTRLEN 1 0 REEXEC
+    YU-TROUGH YU-TR-FILL @ 1 0 REEXEC
     ( matches )
     DUP 0 <> IF
         DUP 0 CELLS + @
@@ -385,11 +408,42 @@ VARIABLE YU-IS-A-TTY
     \ in that case.
 ;
 
-\ read a name and return new NUL-terminated string containing it
+\ eat an identifier and return new NUL-terminated string containing it
 \ if there's no match, 0 is returned.
 \ if there's a match, the resulting string must be freed with XFREE after use.
-( char -- zaddr )
-: YU-EAT-NAME YU-RE-NAME YU-TROUGH-EAT? ;
+( -- zaddr )
+: YU-EAT-IDENT YU-RE-IDENT YU-TROUGH-EAT? ;
+
+\ eat a decimal number and return new NUL-terminated string containing it
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-DEC YU-RE-DEC YU-TROUGH-EAT? ;
+
+\ eat an octal number and return new NUL-terminated string containing it
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-OCT YU-RE-OCT YU-TROUGH-EAT? ;
+
+\ eat a binary number and return new NUL-terminated string containing it
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-BIN YU-RE-BIN YU-TROUGH-EAT? ;
+
+\ eat a hexadecimal number and return new NUL-terminated string containing it
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-HEX YU-RE-HEX YU-TROUGH-EAT? ;
+
+\ eat a number with specified base and return new NUL-terminated string
+\ containing it
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
+( -- zaddr )
+: YU-EAT-BASE YU-RE-BASE YU-TROUGH-EAT? ;
 
 : YU-BANNER
     >INP @ SYSISATTY IF

@@ -37,6 +37,13 @@ static int rdch0( void ) {
     if ( c == EOF ) return c;
     if ( c == '"' ) quote = !quote;
     if ( !quote && c == '(' ) {
+        c = fgetc( stdin );
+        if ( c != ' ' && c != '\n' ) {
+            ungetc( c, stdin );
+            return '(';
+        } else {
+            ungetc( c, stdin );
+        }
         do { c = fgetc( stdin ); } while ( c != ')' && c != EOF );
         return ' ';
     }
