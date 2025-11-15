@@ -446,7 +446,10 @@ VARIABLE YU-IS-A-TTY
 : YU-EAT-BASE YU-RE-BASE YU-TROUGH-EAT? ;
 
 \ eat any kind of number
+\ if there's no match, 0 is returned.
+\ if there's a match, the resulting string must be freed with XFREE after use.
 \ number := hex-n | bin-n | oct-n | dec-n | base-n .
+( -- zaddr )
 : YU-EAT-NUM
     YU-EAT-HEX DUP UNLESS
         DROP
