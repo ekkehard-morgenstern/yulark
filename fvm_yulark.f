@@ -158,8 +158,9 @@ VARIABLE YU-IS-A-TTY
             ( char )
             \ test if it's EOF
             DUP ?EOF
+            ( char eof )
             \ or if it's a linefeed in TTY mode
-            DUP 10 = YU-IS-A-TTY @ AND OR NOT
+            OVER 10 = YU-IS-A-TTY @ AND NOR
             ( char noteof )
             \ get fill state of trough
             YU-TR-FILL @
@@ -239,7 +240,46 @@ VARIABLE YU-IS-A-TTY
 \ returns newly allocated zero-terminated string, use XFREE to free
 ( length -- zaddr )
 : YU-CHOMP
-    \ ... WIP ...
+    \ first, get the size of the trough content
+    YU-TROUGH ZSTRLEN
+    ( usrlen curlen )
+    \ if the requested length is greater, use the current length
+    2DUP U> IF
+        ( usrlen curlen )
+        SWAP DROP
+        ( curlen )
+    ELSE
+        ( usrlen curlen )
+        DROP
+        ( usrlen )
+    THEN
+    ( length )
+    \ create a copy
+    DUP YU-TROUGH SWAP ZSTRCRT
+    ( length zaddr )
+    SWAP
+    ( zaddr length )
+    \ shift the remainder of YU-TROUGH down to the beginning
+    YU-TROUGH ZSTRLEN
+    ( zaddr length total )
+    \ add one to total for the terminating NULL
+    1+
+    \ subtract length (that which has been eaten)
+    OVER -
+    ( zaddr length remain )
+    \ use that to do CMOVE from beyond the end of the copied part
+    OVER
+    ( zaddr length remain length )
+    YU-TROUGH +
+    ( zaddr length remain source )
+    YU-TROUGH
+    ( zaddr length remain source target )
+    ROT
+    ( zaddr length source target remain )
+    CMOVE
+    ( zaddr length )
+    DROP
+    ( zaddr )
 ;
 
 \ skip whitespace

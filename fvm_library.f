@@ -1706,6 +1706,25 @@ VARIABLE CSAC
     THEN
 ;
 
+\ create zero-terminated string from source address and length, using
+\ memory allocated from the heap using XALLOC
+( source length -- target )
+: ZSTRCRT
+    \ allocate memory, adding one extra byte for the NUL
+    DUP 1+ XALLOC
+    ( source length target )
+    SWAP
+    ( source target length )
+    2DUP -5 ROLL -5 ROLL
+    ( target length source target length )
+    \ copy text
+    CMOVE
+    ( target length )
+    \ NUL-terminate target
+    OVER + 0 SWAP C!
+    ( target )
+;
+
 : BYE QUIT ;
 
 BANNER
