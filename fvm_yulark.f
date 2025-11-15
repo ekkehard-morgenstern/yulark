@@ -300,9 +300,10 @@ VARIABLE YU-IS-A-TTY
             ( so eo )
             SWAP
             ( eo so )
-            - 1+
+            DROP 1+
             ( length )
-            \ ... WIP ...
+            \ bite off that part and discard it
+            YU-CHOMP XFREE
         ELSE
             ( 0 )
             DROP
