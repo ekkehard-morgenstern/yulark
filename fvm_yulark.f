@@ -86,6 +86,14 @@ VARIABLE YU-IS-A-TTY
 \ base-n := /#[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/i .
 : YU-RE-BASE RE/ ^#[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/I ;
 
+\ Create regular expression for double quoted string constants
+\ str-seq1 := /"([^"\\]|\\(x[0-9a-fA-F]{1,2}|b[0-1]{1,8}|[0-7]{1,3}|[abetrn]|[\\"']))*"/ .
+: YU-RE-STRSEQ1 RE/ ^"([^"\\]|\\(x[0-9a-fA-F]{1,2}|b[0-1]{1,8}|[0-7]{1,3}|[abetrn]|[\\"']))*"/ ;
+
+\ Create regular expression for single quoted string constants
+\ str-seq2 := /'([^'\\]|\\(x[0-9a-fA-F]{1,2}|b[0-1]{1,8}|[0-7]{1,3}|[abetrn]|[\\"']))*'/ .
+: YU-RE-STRSEQ2 RE/ ^'([^'\\]|\\(x[0-9a-fA-F]{1,2}|b[0-1]{1,8}|[0-7]{1,3}|[abetrn]|[\\"']))*'/ ; \ " \ for compressor
+
 \ Utility functions for ring buffer:
 \ Place a character into the ring buffer
 ( char -- )
