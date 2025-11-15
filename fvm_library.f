@@ -48,10 +48,13 @@ VARIABLE CSAC
 \ define screen attribute combinations
 64 ARRAY ATTRARY
 
+( -- eof )
+: EOF -1 ;
+
 \ check character for EOF
 ( char -- bool )
 : ?EOF
-    -1 =
+    EOF =
 ;
 
 \ skip one space character in the input
@@ -103,7 +106,7 @@ VARIABLE CSAC
         INPGETCH
         ( char )
         \ check for EOF and double quote
-        DUP -1 <> OVER 34 <> AND
+        DUP ?EOF NOT OVER 34 <> AND
     WHILE
         \ neither EOF nor double quote
         ( char )
@@ -232,6 +235,80 @@ VARIABLE CSAC
         STRBUF COUNT
     THEN
 ;
+
+\ quote a NUL-terminated string literal
+\ when compiling, put the string at HERE and generate code to output address
+\ compiles to:
+\   JUMP <pos> <str> LIT[str]
+\
+\ ( -- addr len )
+: Z" IMMEDIATE \ " \ (terminating quote is for compressor)
+    ?IMMEDIATE UNLESS
+        \ read literal into STRBUF
+        STRLIT
+        \ compile string into the word with output code
+        COMPILE JUMP
+        0 ,
+        \ HERE-8 is the address where to store the jump location
+        HERE 8 -
+        ( pos )
+        \ get buffer address and length
+        STRBUF COUNT HERE
+        ( pos srcaddr srclen tgtaddr )
+        \ allot space
+        OVER 8 + 7 NOT AND 8 / ALLOT
+        \ copy args to CMOVE
+        ( pos srcaddr srclen tgtaddr )
+        SWAP
+        ( pos srcaddr tgtaddr srclen )
+        2DUP SWAP
+        ( pos srcaddr tgtaddr srclen srclen tgtaddr )
+        5 ROLL
+        ( pos tgtaddr srclen srclen tgtaddr srcaddr )
+        SWAP
+        ( pos tgtaddr srclen srclen srcaddr tgtaddr )
+        ROT
+        ( pos tgtaddr srclen srcaddr tgtaddr srclen )
+        \ copy string over
+        CMOVE
+        ( pos tgtaddr srclen )
+        \ write NUL-byte at target + length
+        2DUP + 0 SWAP C!
+        ( pos tgtaddr srclen )
+        \ length isn't needed here
+        DROP SWAP
+        ( tgtaddr pos )
+        \ patch the JUMP location to HERE
+        HERE SWAP !
+        \ compile string address
+        ( tgtaddr )
+        LITERAL
+    ELSE
+        \ read literal into STRBUF
+        STRLIT
+        \ output buffer info
+        STRBUF COUNT
+        ( addr len )
+        \ copy buffer backwards onto the length byte
+        OVER 1- SWAP
+        ( src tgt len )
+        2DUP
+        ( src tgt len tgt len )
+        -5 ROLL -5 ROLL
+        ( tgt len src tgt len )
+        CMOVE
+        \ then write terminating NUL byte
+        ( tgt len )
+        + 0 SWAP C!
+        \ return address of string buffer
+        STRBUF
+        ( zaddr )
+    THEN
+;
+
+\ print NUL-terminated string
+( zaddr )
+: Z. DUP ZSTRLEN TYPE ;
 
 \ quote a counted string literal
 \ when compiling, put the string at HERE and generate code to output address
@@ -1513,7 +1590,7 @@ VARIABLE CSAC
         INPGETCH
         ( char )
         \ if it's not EOF, store the 2-character sequence
-        DUP -1 <> IF
+        DUP ?EOF UNLESS
             ( char )
             \ store backslash
             92 REC!
@@ -1531,7 +1608,7 @@ VARIABLE CSAC
     ELSE
         \ not escape character: store if it's not EOF or slash
         ( char )
-        DUP -1 <> OVER 47 <> AND IF
+        DUP ?EOF NOT OVER 47 <> AND IF
             ( char )
             \ store character
             REC!
@@ -1565,14 +1642,16 @@ VARIABLE CSAC
         \ will have TRUE for continue, FALSE for stop
         NOT
     UNTIL
+    \ regular expression sequence has been read until a terminating slash or EOF
     \ clear flags
     0
+    \ read options field after slash
     BEGIN
         ( flags )
         \ get character
         INPGETCH
         ( flags char )
-        DUP -1 <> OVER ?SPC NOT AND
+        DUP ?EOF NOT OVER ?SPC NOT AND
     WHILE
         ( flags char )
         \ test for I or i
@@ -1591,7 +1670,7 @@ VARIABLE CSAC
         ( flags )
     REPEAT
     ( flags char )
-    -1 <> IF
+    ?EOF UNLESS
         \ stopped by space, move back
         >IN DECR
     THEN
@@ -1626,6 +1705,8 @@ VARIABLE CSAC
         \ regular expression object after use
     THEN
 ;
+
+: BYE QUIT ;
 
 BANNER
 FREEMSG

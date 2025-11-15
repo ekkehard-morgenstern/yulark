@@ -41,6 +41,13 @@ static int rdch0( void ) {
         return ' ';
     }
     if ( !quote && c == '\\' ) {
+        c = fgetc( stdin );
+        if ( c != ' ' && c != '\n' ) {
+            ungetc( c, stdin );
+            return '\\';
+        } else {
+            ungetc( c, stdin );
+        }
         do { c = fgetc( stdin ); } while ( c != '\n' && c != EOF );
         if ( c == '\n' ) ungetc( c, stdin );
         return ' ';

@@ -32,7 +32,7 @@ VARIABLE YU-EXPR-CFA
 
 \ Create variable to hold a single putback character, and set it to -1
 VARIABLE YU-PUTBACK
-    -1 YU-PUTBACK !
+-1 YU-PUTBACK !
 
 \ Create variable to hold a line number (initially zero)
 VARIABLE YU-LINE#
@@ -45,34 +45,22 @@ VARIABLE YU-LINE#
 8 ARRAY YU-RINGBUF
 VARIABLE YU-RB-RPOS
 VARIABLE YU-RB-WPOS
+0 YU-RB-RPOS !
+0 YU-RB-WPOS !
 
-\ Function to add a character to YU-NAMEBUF
-\ ( char -- )
-: YU-NAME-ADDCH
-    DUP -1 <> IF
-        ( char )
-        \ get name length
-        YU-NAMEBUF C@
-        DUP 255 < IF
-            1+
-            ( char namelen )
-            YU-NAMEBUF
-            ( char namelen namebuf )
-            \ write length field
-            2DUP C!
-            ( char namelen namebuf )
-            \ write character
-            + C!
-            ( )
-        ELSE
-            ( char namelen )
-            2DROP
-        THEN
-    ELSE
-        ( char )
-        DROP
-    THEN
-;
+\ Create variables for the trough to eat tokens from
+128 ARRAY YU-TROUGH
+0 YU-TROUGH C!
+VARIABLE YU-TR-FILL
+0 YU-TR-FILL !
+1023 CONSTANT YU-TR-SIZE-UPB
+
+\ Variable indicates whether the input channel is a TTY (terminal)
+VARIABLE YU-IS-A-TTY
+>INP @ SYSISATTY YU-IS-A-TTY !
+
+\ Create regular expression for whitespace
+: YU-RE-WHTSPC RE/ ^[ \t\r\n]*/ ;   \ editors might think the \ is a comment
 
 \ Utility functions for ring buffer:
 \ Place a character into the ring buffer
@@ -154,12 +142,148 @@ VARIABLE YU-RB-WPOS
             \ line feed: increment line number
             YU-LINE# INCR
         THEN
-        DUP -1 <> IF
+        DUP ?EOF UNLESS
             \ non-EOF character: record in ring buffer
             DUP YU-RB-PUTCH
         THEN
     THEN
 ;
+
+\ function to fill the trough
+: YU-FILL-TROUGH
+    YU-TR-FILL @ YU-TR-SIZE-UPB < IF
+        BEGIN
+            \ read character
+            YU-RDCH
+            ( char )
+            \ test if it's EOF
+            DUP ?EOF
+            \ or if it's a linefeed in TTY mode
+            DUP 10 = YU-IS-A-TTY @ AND OR NOT
+            ( char noteof )
+            \ get fill state of trough
+            YU-TR-FILL @
+            ( char noteof fill )
+            SWAP
+            ( char fill noteof )
+            \ check limit
+            OVER YU-TR-SIZE-UPB <
+            ( char fill noteof noteob )
+            AND
+        WHILE
+            ( char fill )
+            \ store character at trough position
+            YU-TROUGH + C!
+            ( )
+            \ increment fill count
+            YU-TR-FILL INCR
+        REPEAT
+        ( char fill )
+        SWAP
+        ( fill char )
+        \ see if last character wasn't a EOF
+        DUP ?EOF UNLESS
+            \ yes, it wasn't, put it in putback buffer
+            YU-PUTBACK !
+            ( fill )
+        ELSE
+            \ nope, it was EOF, not needed
+            DROP
+            ( fill)
+        THEN
+        ( fill )
+        \ finished, buffer filled, add NUL byte
+        0 SWAP
+        ( 0 fill )
+        YU-TROUGH + C!
+        ( )
+    THEN
+;
+
+\ check if trough is empty
+( -- bool )
+: ?YU-TROUGH-EMPTY
+    YU-TROUGH C@ 0 = IF
+        \ yes, attempt to read a character
+        YU-RDCH
+        ( char )
+        DUP ?EOF UNLESS
+            \ not EOF: check if it's a linefeed
+            ( char )
+            DUP 10 = IF
+                ( char )
+                \ yes, consume
+                DROP
+            ELSE
+                ( char )
+                \ no, put back
+                YU-PUTBACK !
+            THEN
+            ( )
+            \ refill trough
+            YU-FILL-TROUGH
+            \ check if it's still empty
+            YU-TROUGH C@ 0 =
+        ELSE
+            \ EOF
+            DROP
+            TRUE
+        THEN
+    ELSE
+        \ buffer not empty
+        FALSE
+    THEN
+;
+
+\ take a bite from the trough
+\ returns newly allocated zero-terminated string, use XFREE to free
+( length -- zaddr )
+: YU-CHOMP
+    \ ... WIP ...
+;
+
+\ skip whitespace
+: YU-EAT-WHTSPC
+    \ first, see if buffer is empty
+    ?YU-TROUGH-EMPTY UNLESS
+        \ nope, attempt to match whitespace
+        YU-RE-WHTSPC YU-TROUGH 1 0 REEXEC
+        ( matches )
+        DUP 0 <> IF
+            DUP 0 CELLS + @
+            ( matches so )
+            OVER 1 CELLS + @
+            ( matches so eo )
+            ROT
+            ( so eo matches )
+            XFREE
+            ( so eo )
+            SWAP
+            ( eo so )
+            - 1+
+            ( length )
+            \ ... WIP ...
+        ELSE
+            ( 0 )
+            DROP
+        THEN
+    THEN
+;
+
+\ potentially eat token from trough
+\ returns a pointer to a new string (that must later be freed using XFREE)
+\ or 0 if token wasn't eaten
+( regex -- caddr )
+: YU-TROUGH-EAT?
+    \ first, see if buffer is empty
+    ?YU-TROUGH-EMPTY UNLESS
+        \ ... TBD ...
+        0
+    ELSE
+        0
+    THEN
+;
+
 
 \ test if a character is the character of a name
 ( char -- bool )
@@ -184,6 +308,34 @@ VARIABLE YU-RB-WPOS
 ( char -- bool )
 : YU-NAME-FCHR?
     YU-NAME-CHR?
+;
+
+\ Function to add a character to YU-NAMEBUF
+\ ( char -- )
+: YU-NAME-ADDCH
+    DUP -1 <> IF
+        ( char )
+        \ get name length
+        YU-NAMEBUF C@
+        DUP 255 < IF
+            1+
+            ( char namelen )
+            YU-NAMEBUF
+            ( char namelen namebuf )
+            \ write length field
+            2DUP C!
+            ( char namelen namebuf )
+            \ write character
+            + C!
+            ( )
+        ELSE
+            ( char namelen )
+            2DROP
+        THEN
+    ELSE
+        ( char )
+        DROP
+    THEN
 ;
 
 \ read a name beginning with the supplied character

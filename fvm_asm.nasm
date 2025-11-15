@@ -4968,6 +4968,25 @@ _dig2chr                movzx   rax,al
                         ; ( matches )
                         dq      EXIT
 
+                        ; get length of NUL-terminated string
+                        ; ( zaddr -- length )
+                        DEFASM  "ZSTRLEN",ZSTRLEN,0
+                        CHKUNF  1
+                        mov     rdi,[r15]
+                        ; scan memory until NUL byte is found
+                        xor     rcx,rcx
+                        not     rcx
+                        xor     al,al
+                        cld
+                        repne   scasb
+                        ; rdi will point one byte past the NUL byte
+                        dec     rdi
+                        ; subtract starting address
+                        sub     rdi,[r15]
+                        mov     [r15],rdi
+                        ; done
+                        NEXT
+
                         section .rodata
 
                         align   8
