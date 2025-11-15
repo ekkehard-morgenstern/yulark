@@ -68,23 +68,23 @@ VARIABLE YU-IS-A-TTY
 
 \ Create regular expression for decimal numbers
 \ dec-n := /[0-9]+(\.[0-9]+)?(E[+-]?[0-9]+)?/i .
-: YU-RE-DEC RE/ [0-9]+(\.[0-9]+)?(E[+-]?[0-9]+)?/I ;
+: YU-RE-DEC RE/ ^[0-9]+(\.[0-9]+)?(E[+-]?[0-9]+)?/I ;
 
 \ Create regular expression for octal numbers
 \ oct-n := /@[0-7]+(\.[0-7]+)?(E[+-]?[0-7]+)?/i .
-: YU-RE-OCT RE/ @[0-7]+(\.[0-7]+)?(E[+-]?[0-7]+)?/I ;
+: YU-RE-OCT RE/ ^@[0-7]+(\.[0-7]+)?(E[+-]?[0-7]+)?/I ;
 
 \ Create regular expression for binary numbers
 \ bin-n := /\%[0-1]+(\.[0-1]+)?(E[+-]?[0-1]+)?/i .
-: YU-RE-BIN RE/ \%[0-1]+(\.[0-1]+)?(E[+-]?[0-1]+)?/I ;
+: YU-RE-BIN RE/ ^\%[0-1]+(\.[0-1]+)?(E[+-]?[0-1]+)?/I ;
 
 \ Create regular expression for hexadecimal numbers
 \ hex-n := /\$[0-9A-F]+(\.[0-9A-F]+)?('[+-]?[0-9A-F]+)?/i .
-: YU-RE-HEX RE/ \$[0-9A-F]+(\.[0-9A-F]+)?('[+-]?[0-9A-F]+)?/I ;
+: YU-RE-HEX RE/ ^\$[0-9A-F]+(\.[0-9A-F]+)?('[+-]?[0-9A-F]+)?/I ;
 
 \ Create regular expression for numbers with specifed base
 \ base-n := /#[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/i .
-: YU-RE-BASE RE/ #[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/I ;
+: YU-RE-BASE RE/ ^#[0-9]+#[0-9A-Z]+(\.[0-9A-Z]+)?([E'][+-]?[0-9A-Z]+)?/I ;
 
 \ Utility functions for ring buffer:
 \ Place a character into the ring buffer
@@ -445,8 +445,30 @@ VARIABLE YU-IS-A-TTY
 ( -- zaddr )
 : YU-EAT-BASE YU-RE-BASE YU-TROUGH-EAT? ;
 
+\ eat any kind of number
+\ number := hex-n | bin-n | oct-n | dec-n | base-n .
+: YU-EAT-NUM
+    YU-EAT-HEX DUP UNLESS
+        33 EMIT
+        DROP
+        YU-EAT-BIN DUP UNLESS
+            33 EMIT
+            DROP
+            YU-EAT-OCT DUP UNLESS
+                33 EMIT
+                DROP
+                YU-EAT-DEC DUP UNLESS
+                    DROP
+                    33 EMIT
+                    YU-EAT-BASE
+                THEN
+            THEN
+        THEN
+    THEN
+;
+
 : YU-BANNER
-    >INP @ SYSISATTY IF
+    YU-IS-A-TTY @ IF
         BOLD ." Yulark initialized." REGULAR LF
     THEN
 ;
