@@ -498,6 +498,16 @@ VARIABLE YU-IS-A-TTY
     THEN
 ;
 
+\ concept for identifier hash tables:
+\       cooked-ident -> ( origname, prefix )
+\       ( origname, prefix ) -> cooked-ident
+\ cooked-ident layout:
+\       USR-scope-name
+\ for instance:
+\       USR-CLS-33 -> ( 'MyClass', 'CLS' )
+\ these cooked identifiers can then be used in YULARK FORTH code.
+( ... )
+
 : YU-BANNER
     YU-IS-A-TTY @ IF
         BOLD ." Yulark initialized." REGULAR LF
