@@ -282,6 +282,45 @@ VARIABLE YU-IS-A-TTY
     ( zaddr )
 ;
 
+\ same as YU-CHOMP, but doesn't allocate memory and has no result
+( length -- )
+: YU-CHUCK
+    \ first, get the size of the trough content
+    YU-TROUGH ZSTRLEN
+    ( usrlen curlen )
+    \ if the requested length is greater, use the current length
+    2DUP U> IF
+        ( usrlen curlen )
+        SWAP DROP
+        ( curlen )
+    ELSE
+        ( usrlen curlen )
+        DROP
+        ( usrlen )
+    THEN
+    ( length )
+    \ shift the remainder of YU-TROUGH down to the beginning
+    YU-TROUGH ZSTRLEN
+    ( length total )
+    \ add one to total for the terminating NULL
+    1+
+    \ subtract length (that which has been eaten)
+    OVER -
+    ( length remain )
+    \ use that to do CMOVE from beyond the end of the copied part
+    OVER
+    ( length remain length )
+    YU-TROUGH +
+    ( length remain source )
+    YU-TROUGH
+    ( length remain source target )
+    ROT
+    ( length source target remain )
+    CMOVE
+    ( length )
+    DROP
+;
+
 \ skip whitespace
 : YU-EAT-WHTSPC
     \ first, see if buffer is empty
@@ -303,7 +342,7 @@ VARIABLE YU-IS-A-TTY
             DROP 1+
             ( length )
             \ bite off that part and discard it
-            YU-CHOMP XFREE
+            YU-CHUCK
         ELSE
             ( 0 )
             DROP
