@@ -449,17 +449,13 @@ VARIABLE YU-IS-A-TTY
 \ number := hex-n | bin-n | oct-n | dec-n | base-n .
 : YU-EAT-NUM
     YU-EAT-HEX DUP UNLESS
-        33 EMIT
         DROP
         YU-EAT-BIN DUP UNLESS
-            33 EMIT
             DROP
             YU-EAT-OCT DUP UNLESS
-                33 EMIT
                 DROP
                 YU-EAT-DEC DUP UNLESS
                     DROP
-                    33 EMIT
                     YU-EAT-BASE
                 THEN
             THEN
