@@ -1319,12 +1319,9 @@ _fpowl                  push    rsi
                         ; rsi - size
                         ; check if there's an evaluation currently in progress
                         ; if not, we can change context right away
-_evalpush               mov     rax,[rbp-EVALBUF]
-                        test    rax,rax
-                        jnz     .setup
                         ; adjust evaluation stack pointer
-                        mov     r8,[rbp-EVALSTP]
-                        sub     r8,24  ; 3 * 8
+_evalpush               mov     r8,[rbp-EVALSTP]
+                        sub     r8,32  ; 4 * 8
                         lea     rdx,[rbp-EVALSTK]
                         cmp     r8,rdx
                         jb      .stkovf
@@ -1333,14 +1330,18 @@ _evalpush               mov     rax,[rbp-EVALBUF]
                         mov     rax,[rbp-EVALBUF]
                         mov     rdx,[rbp-EVALSIZE]
                         mov     rcx,[rbp-EVALPOS]
+                        mov     r9,[rbp-PUTBACKCHAR]
                         mov     [r8],rax
                         mov     [r8+8],rdx
                         mov     [r8+16],rcx
+                        mov     [r8+24],r9
                         ; set up new context
-.setup                  mov     [rbp-EVALBUF],rdi
+                        mov     [rbp-EVALBUF],rdi
                         mov     [rbp-EVALSIZE],rsi
                         xor     rax,rax
                         mov     [rbp-EVALPOS],rax
+                        not     rax
+                        mov     [rbp-PUTBACKCHAR],rax
                         ; done
                         ret
 .stkovf                 jmp     fvm_evalstkovf
@@ -1349,7 +1350,7 @@ _evalpush               mov     rax,[rbp-EVALBUF]
                         ; pop evaluation stack pointer
                         ; if there would be an underflow, reset evaluation
 _evalpop                mov     r8,[rbp-EVALSTP]
-                        add     r8,24
+                        add     r8,32
                         lea     rax,[rbp-EVALSTKUPB]
                         cmp     r8,rax
                         jae     .reset
@@ -1357,9 +1358,11 @@ _evalpop                mov     r8,[rbp-EVALSTP]
                         mov     rax,[r8]
                         mov     rdx,[r8+8]
                         mov     rcx,[r8+16]
+                        mov     r9,[r8+24]
                         mov     [rbp-EVALBUF],rax
                         mov     [rbp-EVALSIZE],rdx
                         mov     [rbp-EVALPOS],rcx
+                        mov     [rbp-PUTBACKCHAR],r9
                         jmp     .end
                         ; reset evaluation context
 .reset                  mov     [rbp-EVALSTP],rax
@@ -1367,14 +1370,9 @@ _evalpop                mov     r8,[rbp-EVALSTP]
                         mov     [rbp-EVALBUF],rax
                         mov     [rbp-EVALSIZE],rax
                         mov     [rbp-EVALPOS],rax
-                        ; put a space into the putback buffer if it's empty
-                        ; this is to prevent problems at buffer transitions
-.end                    mov     rax,[rbp-PUTBACKCHAR]
-                        cmp     rax,-1
-                        jne     .end2
-                        mov     rax,32
+                        not     rax
                         mov     [rbp-PUTBACKCHAR],rax
-.end2                   ret
+.end                    ret
 
                         ; to-in returns the address of the INP offset
                         DEFASM  ">IN",TOIN,0
@@ -5105,6 +5103,19 @@ _dig2chr                movzx   rax,al
                         NEXT
 
                         ; cause a nested evaluation of specified string
+                        ;
+                        ; NOTE: There's a known problem which requires a space
+                        ; character to be present at the end of the string.
+                        ; Otherwise, there'll be a problem when returning to the
+                        ; parent context. For instance,
+                        ;       S" 2 2 +" EVAL
+                        ;       .
+                        ; will result in an unknown entity error b/c "+." will
+                        ; have been read by ?WORD, while
+                        ;       S" 2 2 + " EVAL
+                        ;       .
+                        ; will work fine. So, be careful when using EVAL.
+                        ;
                         ; ( addr len -- )
                         DEFASM  "EVAL",NESTEVAL,0
                         CHKUNF  2
