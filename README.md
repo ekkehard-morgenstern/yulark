@@ -22,6 +22,7 @@ Some of its features are:
 - Large nucleus word set and library (the latter of which is compiled into the fvm_test program for demonstration purposes).
 - Has CALLC for calling arbitrary C functions conforming to the x86-64 SYSV ABI specification. However, passing of arguments in XMM registers is NOT supported, which precludes direct passing of floating-point parameters. Nonetheless, this allows for the usage of user-defined (or library) C functions, for instance. Supports variable argument lists of arbitrary length.
 - Has UNHIDE immediate word to permit recursion when using the compiler (i.e. during word definitions). The current definition will not be hidden anymore (which is usually done to be able to reference previous definitions of the same word). HIDE can be used to hide it again.
+- Now better supports NUL-terminated strings (C style strings), and there's an EVAL function (this functionality of which has been used internally before, but wasn't exposed to the user).
 - Bounds checking for parameter and return stack and dictionary pointers.
 - Uses not a single global variable, thus suitable for multithread execution (with each FORTH instance in its own thread with its own memory).
 - Stack frame of FORTH context is comparatively small with currently 1280 bytes of storage.

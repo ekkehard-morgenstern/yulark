@@ -82,7 +82,7 @@
                         ; rdx - return stack size
                         ; rcx - library source
                         ; r8  - library size
-fvm_run                 enter   0x500,0     ; n bytes of local storage
+fvm_run                 enter   0x600,0     ; n bytes of local storage
 
                         ; rbp-0x100     beginning of 256 bytes INP space
 %define INP             0x100
@@ -150,6 +150,16 @@ fvm_run                 enter   0x500,0     ; n bytes of local storage
 %define PREPBUF         0x400
                         ; rbp-0x500     preparation buffer for F.
 %define PREPBUF2        0x500
+                        ; rbp-0x500     evaluation stack upper bound
+%define EVALSTKUPB      0x500
+                        ; rbp-0x5e8     evaluation stack
+%define EVALSTK         0x5e8
+                        ; rbp-0x5f0     evaluation stack pointer
+%define EVALSTP         0x5f0
+                        ; rbp-0x5f8     stack pointer reset
+%define SYSRSPRESET     0x5f8
+                        ; ebp-0x600     putback character
+%define PUTBACKCHAR     0x600
 
                         push    r15
                         push    r14
@@ -162,6 +172,15 @@ fvm_run                 enter   0x500,0     ; n bytes of local storage
                         mov     [rbp-EVALSIZE],r8
                         xor     rax,rax
                         mov     [rbp-EVALPOS],rax
+
+                        ; set up evaluation stack
+                        lea     rax,[rbp-EVALSTKUPB]
+                        mov     [rbp-EVALSTP],rax
+
+                        ; setup putback character
+                        xor     rax,rax
+                        not     rax
+                        mov     [rbp-PUTBACKCHAR],rax
 
                         ; set up RSP
                         ; in the beginning, it points just beyond the end of
@@ -253,6 +272,9 @@ _INTERPRET              dq      FPUINIT,INTERPRET,EXIT
                         not     rax
                         mov     [rbp-ISIMMED],rax
 
+                        ; save system stack pointer
+                        mov     [rbp-SYSRSPRESET],rsp
+
                         ; go to NEXT
                         NEXT
 
@@ -260,7 +282,8 @@ _INTERPRET              dq      FPUINIT,INTERPRET,EXIT
                         align   32
 
                         ; terminates the execution of FORTH code
-fvm_term                pop     rbx
+fvm_term                mov     rsp,[rbp-SYSRSPRESET]
+                        pop     rbx
                         pop     r12
                         pop     r13
                         pop     r14
@@ -314,6 +337,7 @@ fvm_unexpeof            ERREND  "? unexpected end of file"
 fvm_notfound            ERREND  "? word not found"
 fvm_noparam             ERREND  "? word has no parameter field"
 fvm_negallot            ERREND  "? negative allot"
+fvm_evalstkovf          ERREND  "? evaluation stack overflow"
 
                         ; check for stack overflow
                         %macro  CHKOVF 1
@@ -1287,11 +1311,76 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
+                        section .text
+                        align   32
+
+                        ; push evaluation context and set up new one
+                        ; rdi - addr
+                        ; rsi - size
+                        ; check if there's an evaluation currently in progress
+                        ; if not, we can change context right away
+_evalpush               mov     rax,[rbp-EVALBUF]
+                        test    rax,rax
+                        jnz     .setup
+                        ; adjust evaluation stack pointer
+                        mov     r8,[rbp-EVALSTP]
+                        sub     r8,24  ; 3 * 8
+                        lea     rdx,[rbp-EVALSTK]
+                        cmp     r8,rdx
+                        jb      .stkovf
+                        mov     [rbp-EVALSTP],r8
+                        ; save current context
+                        mov     rax,[rbp-EVALBUF]
+                        mov     rdx,[rbp-EVALSIZE]
+                        mov     rcx,[rbp-EVALPOS]
+                        mov     [r8],rax
+                        mov     [r8+8],rdx
+                        mov     [r8+16],rcx
+                        ; set up new context
+.setup                  mov     [rbp-EVALBUF],rdi
+                        mov     [rbp-EVALSIZE],rsi
+                        xor     rax,rax
+                        mov     [rbp-EVALPOS],rax
+                        ; done
+                        ret
+.stkovf                 jmp     fvm_evalstkovf
+
+                        align   32
+                        ; pop evaluation stack pointer
+                        ; if there would be an underflow, reset evaluation
+_evalpop                mov     r8,[rbp-EVALSTP]
+                        add     r8,24
+                        lea     rax,[rbp-EVALSTKUPB]
+                        cmp     r8,rax
+                        jae     .reset
+                        mov     [rbp-EVALSTP],r8
+                        mov     rax,[r8]
+                        mov     rdx,[r8+8]
+                        mov     rcx,[r8+16]
+                        mov     [rbp-EVALBUF],rax
+                        mov     [rbp-EVALSIZE],rdx
+                        mov     [rbp-EVALPOS],rcx
+                        jmp     .end
+                        ; reset evaluation context
+.reset                  mov     [rbp-EVALSTP],rax
+                        xor     rax,rax
+                        mov     [rbp-EVALBUF],rax
+                        mov     [rbp-EVALSIZE],rax
+                        mov     [rbp-EVALPOS],rax
+                        ; put a space into the putback buffer if it's empty
+                        ; this is to prevent problems at buffer transitions
+.end                    mov     rax,[rbp-PUTBACKCHAR]
+                        cmp     rax,-1
+                        jne     .end2
+                        mov     rax,32
+                        mov     [rbp-PUTBACKCHAR],rax
+.end2                   ret
+
                         ; to-in returns the address of the INP offset
                         DEFASM  ">IN",TOIN,0
                         CHKOVF  1
                         ; if an evaluation is in progress, return that address
-                        mov     rax,[rbp-EVALBUF]
+.redo                   mov     rax,[rbp-EVALBUF]
                         test    rax,rax
                         jz      .noeval
                         ; first check if the end of the buffer has been reached
@@ -1301,11 +1390,9 @@ _fpowl                  push    rsi
                         ; nope, continue
                         lea     rax,[rbp-EVALPOS]
                         jmp     .finish
-                        ; yes, end of evaluation: zap fields
-.evaldone               xor     rax,rax
-                        mov     [rbp-EVALBUF],rax
-                        mov     [rbp-EVALSIZE],rax
-                        mov     [rbp-EVALPOS],rax
+                        ; yes, end of evaluation: pop evaluation stack or reset
+.evaldone               call    _evalpop
+                        jmp     .redo
                         ; nope, return that of the file input buffer position
 .noeval                 lea     rax,[rbp-IPOS]
 .finish                 sub     r15,8
@@ -1628,12 +1715,40 @@ _fpowl                  push    rsi
                         mov     [r15],rax
                         NEXT
 
+                        ; return putback character (-1 for none)
+                        ; ( -- char )
+                        DEFASM  "?PUTBACK",GETPUTBACK,0
+                        CHKOVF  1
+                        sub     r15,8
+                        mov     rax,[rbp-PUTBACKCHAR]
+                        mov     [r15],rax
+                        NEXT
+
+                        ; put back a character
+                        ; ( char -- )
+                        DEFASM  ">PUTBACK",TOPUTBACK,0
+                        CHKUNF  1
+                        mov     rax,[r15]
+                        add     r15,8
+                        mov     [rbp-PUTBACKCHAR],rax
+                        NEXT
+
                         ; read a character from the INP input
                         ; ( -- char )
                         ; returns -1 on error or EOF
                         DEFCOL  "INPGETCH",INPGETCH,0
+                        ; check if there's a putback character
+.nextchar               dq      GETPUTBACK      ;   ?PUTBACK
+                        dq      DUP,LIT,-1,EQINT ;  DUP -1 =
+                        dq      CONDJUMP,.noputb ;  ?JUMP[.noputb]
+                        ; there's a putback character
+                        ; store a -1 and return it
+                        dq      LIT,-1,TOPUTBACK    ; -1 >PUTBACK
+                        dq      EXIT
+                        ; no putback character, drop the -1
+.noputb                 dq      DROP            ;   DROP
                         ; check if input position is beyond maximum
-.nextchar               dq      TOIN,FETCH      ;   >IN @
+                        dq      TOIN,FETCH      ;   >IN @
                         dq      TOMAX,FETCH     ;   >MAX @
                         dq      LTINT           ;   <
                         ; if not, jump to continue
@@ -1678,7 +1793,9 @@ _fpowl                  push    rsi
                         dq      JUMP,.nextchar  ;   JUMP[.nextchar]
                         ; ( char )
                         ; decrement character position for INP
-.finish2                dq      TOIN,DECR       ;   >IN DECR
+                        ; put back character
+.finish2                dq      TOPUTBACK       ;   >PUTBACK
+                        dq      EXIT
                         ; ( char )
 .finish                 dq      DROP            ;   DROP
                         dq      EXIT
@@ -1862,10 +1979,11 @@ _fpowl                  push    rsi
                         ; (SPC, TAB, NEWLINE, NUL)
                         dq      DUP,ISSPC,BINNOT ;  DUP ?SPC NOT
                         dq      CONDJUMP,.storechr ; ?JUMP[.storechr]
-                        ; decrement character position for INP
-                        dq      TOIN,DECR       ;   >IN DECR
+                        ; put back character
+                        dq      TOPUTBACK       ;   >PUTBACK
+                        dq      JUMP,.end2      ;   JUMP[.end2]
                         ; end
-                        ; (char)
+                        ; ( char )
 .end                    dq      DROP            ;   DROP
                         ; leave NAME address
 .end2                   dq      PUSHNAME        ;   NAME
@@ -3220,10 +3338,9 @@ fvm_douser              CHKOVF  1
                         dq      JUMP,.nextchar      ; JUMP[.nextchar]
 .eof                    dq      DROP                ; DROP
                         dq      JMPSYS,fvm_unexpeof ; JMPSYS[.unexpeof]
-                        ; ends with a newline, go back one position
+                        ; ends with a newline, put back character
                         ; so the newline is read again by SKIPSPC later
-.end                    dq      DROP                ; DROP
-                        dq      TOIN,DECR           ; >IN DECR
+.end                    dq      TOPUTBACK           ; >PUTBACK
                         dq      EXIT
 
                         DEFCOL  "VARIABLE",VARIABLE,0
@@ -4985,6 +5102,16 @@ _dig2chr                movzx   rax,al
                         sub     rdi,[r15]
                         mov     [r15],rdi
                         ; done
+                        NEXT
+
+                        ; cause a nested evaluation of specified string
+                        ; ( addr len -- )
+                        DEFASM  "EVAL",NESTEVAL,0
+                        CHKUNF  2
+                        mov     rdi,[r15+8]
+                        mov     rsi,[r15]
+                        add     r15,16
+                        call    _evalpush
                         NEXT
 
                         section .rodata
