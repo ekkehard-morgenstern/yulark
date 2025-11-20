@@ -1321,7 +1321,7 @@ _fpowl                  push    rsi
                         ; if not, we can change context right away
                         ; adjust evaluation stack pointer
 _evalpush               mov     r8,[rbp-EVALSTP]
-                        sub     r8,32  ; 4 * 8
+                        sub     r8,64  ; 4 * 8 * 2
                         lea     rdx,[rbp-EVALSTK]
                         cmp     r8,rdx
                         jb      .stkovf
@@ -1331,10 +1331,33 @@ _evalpush               mov     r8,[rbp-EVALSTP]
                         mov     rdx,[rbp-EVALSIZE]
                         mov     rcx,[rbp-EVALPOS]
                         mov     r9,[rbp-PUTBACKCHAR]
-                        mov     [r8],rax
-                        mov     [r8+8],rdx
-                        mov     [r8+16],rcx
-                        mov     [r8+24],r9
+                        mov     [r8+32],rax
+                        mov     [r8+40],rdx
+                        mov     [r8+48],rcx
+                        mov     [r8+56],r9
+                        ; save transition context
+                        ; NOTE: There was a known problem which required a space
+                        ; character to be present at the end of the string.
+                        ; Otherwise, there was a problem when returning to the
+                        ; parent context. For instance,
+                        ;       S" 2 2 +" EVAL
+                        ;       .
+                        ; would result in an unknown entity error b/c "+." would
+                        ; have been read by ?WORD, while
+                        ;       S" 2 2 + " EVAL
+                        ;       .
+                        ; would work fine. Hence, I decided to generate this
+                        ; transitional space character automatically, so return
+                        ; from an evaluation context is smooth no matter what
+                        ; its contents are.
+                        lea     rax,_sngspc
+                        mov     rdx,1
+                        mov     rcx,0
+                        mov     r9,-1
+                        mov     [r8+32],rax
+                        mov     [r8+40],rdx
+                        mov     [r8+48],rcx
+                        mov     [r8+56],r9
                         ; set up new context
                         mov     [rbp-EVALBUF],rdi
                         mov     [rbp-EVALSIZE],rsi
@@ -1346,6 +1369,11 @@ _evalpush               mov     r8,[rbp-EVALSTP]
                         ret
 .stkovf                 jmp     fvm_evalstkovf
 
+                        section .rodata
+                        align   8
+_sngspc                 db      32
+
+                        section .text
                         align   32
                         ; pop evaluation stack pointer
                         ; if there would be an underflow, reset evaluation
@@ -5103,19 +5131,6 @@ _dig2chr                movzx   rax,al
                         NEXT
 
                         ; cause a nested evaluation of specified string
-                        ;
-                        ; NOTE: There's a known problem which requires a space
-                        ; character to be present at the end of the string.
-                        ; Otherwise, there'll be a problem when returning to the
-                        ; parent context. For instance,
-                        ;       S" 2 2 +" EVAL
-                        ;       .
-                        ; will result in an unknown entity error b/c "+." will
-                        ; have been read by ?WORD, while
-                        ;       S" 2 2 + " EVAL
-                        ;       .
-                        ; will work fine. So, be careful when using EVAL.
-                        ;
                         ; ( addr len -- )
                         DEFASM  "EVAL",NESTEVAL,0
                         CHKUNF  2
