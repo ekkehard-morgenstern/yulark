@@ -1354,10 +1354,10 @@ _evalpush               mov     r8,[rbp-EVALSTP]
                         mov     rdx,1
                         mov     rcx,0
                         mov     r9,-1
-                        mov     [r8+32],rax
-                        mov     [r8+40],rdx
-                        mov     [r8+48],rcx
-                        mov     [r8+56],r9
+                        mov     [r8],rax
+                        mov     [r8+8],rdx
+                        mov     [r8+16],rcx
+                        mov     [r8+24],r9
                         ; set up new context
                         mov     [rbp-EVALBUF],rdi
                         mov     [rbp-EVALSIZE],rsi
@@ -1378,11 +1378,9 @@ _sngspc                 db      32
                         ; pop evaluation stack pointer
                         ; if there would be an underflow, reset evaluation
 _evalpop                mov     r8,[rbp-EVALSTP]
-                        add     r8,32
                         lea     rax,[rbp-EVALSTKUPB]
                         cmp     r8,rax
                         jae     .reset
-                        mov     [rbp-EVALSTP],r8
                         mov     rax,[r8]
                         mov     rdx,[r8+8]
                         mov     rcx,[r8+16]
@@ -1391,6 +1389,8 @@ _evalpop                mov     r8,[rbp-EVALSTP]
                         mov     [rbp-EVALSIZE],rdx
                         mov     [rbp-EVALPOS],rcx
                         mov     [rbp-PUTBACKCHAR],r9
+                        add     r8,32
+                        mov     [rbp-EVALSTP],r8
                         jmp     .end
                         ; reset evaluation context
 .reset                  mov     [rbp-EVALSTP],rax
