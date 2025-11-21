@@ -94,6 +94,50 @@ VARIABLE YU-IS-A-TTY
 \ str-seq2 := /'([^'\\]|\\(x[0-9a-fA-F]{1,2}|b[0-1]{1,8}|[0-7]{1,3}|[abetrn]|[\\"']))*'/ .
 : YU-RE-STRSEQ2 RE/ ^'([^'\\]|\\(x[0-9a-fA-F]{1,2}|b[0-1]{1,8}|[0-7]{1,3}|[abetrn]|[\\"']))*'/ ; \ " \ for compressor
 
+\ Allocate N cells.
+( size -- memptr )
+: YU-CELLS-ALLOC CELLS XALLOC ;
+
+\ Allocate AST (abstract syntax tree) node
+\ Each node contains the following fields:
+\
+\   +-------------------------+
+\   |       node type         |
+\   +-------------------------+
+\   |   node-specific data    |
+\   +-------------------------+
+\   |    number of branches   |
+\   +-------------------------+
+\   | allocated number of br. |
+\   +-------------------------+
+\   |   pointer to branches   |
+\   +-------------------------+
+\
+0 CELLS CONSTANT YU-ASTN-TYPE
+1 CELLS CONSTANT YU-ASTN-DATA
+2 CELLS CONSTANT YU-ASTN-NUM-BR
+3 CELLS CONSTANT YU-ASTN-ALO-BR
+4 CELLS CONSTANT YU-ASTN-PTR-BR
+
+: YU-ASTN-ALLOC 5 YU-CELLS-ALLOC ;
+
+( type data -- node )
+: YU-ASTN-CREATE
+    YU-ASTN-ALLOC
+    ( type data node )
+    3 PICK 2 PICK YU-ASTN-TYPE + !
+    2 PICK 2 PICK YU-ASTN-DATA + !
+    -3 ROLL
+    ( node type data )
+    2DROP
+    ( data )
+;
+
+( data -- )
+: YU-ASTN-DELETE
+\ ... TBD ...
+;
+
 \ Utility functions for ring buffer:
 \ Place a character into the ring buffer
 ( char -- )
