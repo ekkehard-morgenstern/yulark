@@ -31,6 +31,7 @@
                         extern      _dbgfdot
                         extern      _xalloc
                         extern      _xfree
+                        extern      _xrealloc
                         extern      _reinit
                         extern      _refree
                         extern      _reexec
@@ -5083,8 +5084,17 @@ _dig2chr                movzx   rax,al
                         dq      DROP
                         dq      EXIT
 
+                        ; reallocate a block of system memory
+                        ; NOTE: This is intended for short-lived memory blocks.
+                        ; ( addr size -- addr )
+                        DEFCOL  "XREALLOC",XREALLOC,0
+                        dq      LIT,2,LIT,_xrealloc
+                        dq      CALLC
+                        ; ( addr )
+                        dq      EXIT
+
                         ; initialize regular expression
-                        ; ( caddr -- regex )
+                        ; ( flags caddr -- regex )
                         DEFCOL  "REINIT",REINIT,0
                         ; ( flags caddr )
                         dq      LIT,2,LIT,_reinit

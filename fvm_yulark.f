@@ -127,6 +127,9 @@ VARIABLE YU-IS-A-TTY
     ( type data node )
     3 PICK 2 PICK YU-ASTN-TYPE + !
     2 PICK 2 PICK YU-ASTN-DATA + !
+    0 OVER YU-ASTN-NUM-BR + !
+    0 OVER YU-ASTN-ALO-BR + !
+    0 OVER YU-ASTN-PTR-BR + !
     -3 ROLL
     ( node type data )
     2DROP
@@ -135,7 +138,42 @@ VARIABLE YU-IS-A-TTY
 
 ( data -- )
 : YU-ASTN-DELETE
-\ ... TBD ...
+    \ allow recursion
+    UNHIDE
+    \ check pointer
+    DUP 0 <> IF
+        ( data )
+        DUP YU-ASTN-NUM-BR + @ DUP 0 U> IF
+            BEGIN
+                ( data numbr )
+                \ decrement and store branch count
+                1- OVER YU-ASTN-NUM-BR + OVER SWAP !
+                ( data numbr )
+                \ load branch address
+                OVER YU-ASTN-PTR-BR + @ OVER CELLS +
+                ( data numbr brptr )
+                DUP @
+                ( data numbr brptr braddr )
+                \ free branch by using recursion
+                YU-ASTN-DELETE
+                ( data numbr brptr )
+                \ set branch pointer to 0
+                0 SWAP !
+                ( data numbr )
+                \ loop until count equals 0
+                DUP 0 =
+            UNTIL
+            ( data numbr )
+            \ free the branch pointer
+            OVER YU-ASTN-PTR-BR + @ XFREE
+            \ store 0 in it
+            OVER YU-ASTN-PTR-BR + 0 SWAP !
+            ( data numbr )
+        THEN
+        ( data numbr )
+        DROP
+        XFREE
+    THEN
 ;
 
 \ Utility functions for ring buffer:

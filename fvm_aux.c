@@ -73,6 +73,39 @@ void _xfree( uint64_t ptr ) {
     if ( u.pval == 0 ) return;
     free( u.pval );
 }
+uint64_t _xrealloc( uint64_t ptr, uint64_t size ) {
+    union {
+        uint64_t uval;
+        void*    pval;
+    } u;
+    u.uval = ptr;
+    void* oldblock = u.pval;
+    /*
+        Emulate the following GLIBC features in case GLIBC isn't used:
+            - If oldblock == 0 and size != 0, malloc() will be called.
+            - If oldblock != 0 and size == 0, free() will be called.
+            - If oldblock == 0 and size == 0, nothing happens.
+        Doing this increases portability beyond GLIBC.
+     */
+    void* newblock;
+    if ( oldblock == 0 && size != 0 ) {
+        newblock = malloc( size );
+    } else if ( oldblock != 0 && size == 0 ) {
+        free( oldblock );
+        newblock = 0;
+    } else if ( oldblock == 0 && size == 0 ) {
+        newblock = 0;
+    } else {
+        newblock = realloc( oldblock, (size_t) size );
+    }
+    if ( newblock == 0 && size != 0 ) {
+        fprintf( stderr, "? out of memory\n" );
+        exit( EXIT_FAILURE );
+    }
+    u.uval = 0;
+    u.pval = newblock;
+    return u.uval;
+}
 
 // regular expression subroutines
 
