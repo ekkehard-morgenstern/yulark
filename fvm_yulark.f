@@ -141,7 +141,7 @@ VARIABLE YU-IS-A-TTY
     \ allow recursion
     UNHIDE
     \ check pointer
-    DUP 0 <> IF
+    DUP <>0 IF
         ( data )
         DUP YU-ASTN-NUM-BR + @ DUP 0 U> IF
             BEGIN
@@ -161,7 +161,7 @@ VARIABLE YU-IS-A-TTY
                 0 SWAP !
                 ( data numbr )
                 \ loop until count equals 0
-                DUP 0 =
+                DUP =0
             UNTIL
             ( data numbr )
             \ free the branch pointer
@@ -174,6 +174,50 @@ VARIABLE YU-IS-A-TTY
         DROP
         XFREE
     THEN
+;
+
+\ add branch to AST
+( astn br -- )
+: YU-ASTN-ADDBR
+    \ check if number of branches is equal or greater than number of allocated
+    \ branches
+    OVER YU-ASTN-NUM-BR + @
+    ( astn br numbr )
+    2 PICK YU-ASTN-ALO-BR + @
+    ( astn br numbr alloc )
+    2DUP >= IF
+        \ number of branches is equal or greater than number of allocated
+        \ branches: increase number of allocated branches
+        \ if it was 0, make it 10
+        ( astn br numbr alloc )
+        DUP =0 IF
+            DROP 10
+        ELSE
+            2 *
+        THEN
+        \ get the branch pointer then reallocate it to new size
+        4 PICK YU-ASTN-PTR-BR + @
+        OVER CELLS XREALLOC
+        ( astn br numbr alloc newptr )
+        5 PICK YU-ASTN-PTR-BR + !
+        ( astn br numbr alloc )
+        \ save new allocation size
+        4 PICK YU-ASTN-ALO-BR + !
+        ( astn br numbr )
+    ELSE
+        ( astn br numbr alloc )
+        \ no, number of allocated branches not needed here
+        DROP
+        ( astn br numbr )
+    THEN
+    ( astn br numbr )
+    \ store the branch at the current branch index (number of branches)
+    2DUP 5 PICK YU-ASTN-PTR-BR + @ SWAP CELLS + !
+    ( astn br numbr )
+    \ increment number of branches
+    1+ 3 PICK YU-ASTN-NUM-BR + !
+    ( astn br )
+    2DROP
 ;
 
 \ Utility functions for ring buffer:
@@ -318,7 +362,7 @@ VARIABLE YU-IS-A-TTY
 \ check if trough is empty
 ( -- bool )
 : ?YU-TROUGH-EMPTY
-    YU-TROUGH C@ 0 = IF
+    YU-TROUGH C@ =0 IF
         \ yes, attempt to read a character
         YU-RDCH
         ( char )
@@ -338,7 +382,7 @@ VARIABLE YU-IS-A-TTY
             \ refill trough
             YU-FILL-TROUGH
             \ check if it's still empty
-            YU-TROUGH C@ 0 =
+            YU-TROUGH C@ =0
         ELSE
             \ EOF
             DROP
@@ -444,7 +488,7 @@ VARIABLE YU-IS-A-TTY
         \ nope, attempt to match whitespace
         YU-RE-WHTSPC YU-TROUGH YU-TR-FILL @ 1 0 REEXEC
         ( matches )
-        DUP 0 <> IF
+        DUP <>0 IF
             DUP 0 CELLS + @
             ( matches so )
             OVER 1 CELLS + @
@@ -477,7 +521,7 @@ VARIABLE YU-IS-A-TTY
     \ attempt to match regex
     YU-TROUGH YU-TR-FILL @ 1 0 REEXEC
     ( matches )
-    DUP 0 <> IF
+    DUP <>0 IF
         DUP 0 CELLS + @
         ( matches so )
         OVER 1 CELLS + @

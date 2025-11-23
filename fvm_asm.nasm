@@ -3279,7 +3279,7 @@ fvm_douser              CHKOVF  1
                         dq      FINDWORD            ; FIND
                         ; ( addr len defptr )
                         ; if not, we get a 0
-                        dq      DUP,EQZEROINT       ; DUP 0=
+                        dq      DUP,EQZEROINT       ; DUP =0
                         dq      CONDJUMP,.notfound  ; ?JUMP[.notfound]
                         ; ( addr len defptr )
                         ; found, get rid of the addr/len fields
